@@ -196,6 +196,8 @@ svg.chart{display:block;width:100%;height:180px;overflow:visible}
   </div>
 
   <div class="row" style="justify-content:flex-end">
+    <button id="import">Import</button>
+    <input type="file" id="importfile" accept=".json,application/json" style="display:none">
     <button id="export">Export</button>
     <button id="reset">Reset</button>
   </div>
@@ -383,6 +385,7 @@ function renderEx(){
       if(h.length){
         var lastKey = null;
         Object.keys(S.log).sort().forEach(function(kk){
+          if(kk === k) return;                      /* never show today as "last" */
           if(S.log[kk].sets && S.log[kk].sets[e.n]) lastKey = kk;
         });
         if(lastKey && S.log[lastKey].sets[e.n][i]) pset = S.log[lastKey].sets[e.n][i];
@@ -625,6 +628,37 @@ document.getElementById('export').addEventListener('click', function(){
   var a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(S,null,2)],{type:'application/json'}));
   a.download = 'lift-' + today() + '.json'; a.click();
+});
+
+/* ---- import: merge a previously exported file ---- */
+document.getElementById('import').addEventListener('click', function(){
+  document.getElementById('importfile').click();
+});
+document.getElementById('importfile').addEventListener('change', function(e){
+  var f = e.target.files[0]; if(!f) return;
+  var fr = new FileReader();
+  fr.onload = function(){
+    try{
+      var inc = JSON.parse(fr.result);
+      if(!inc || typeof inc !== 'object') throw 0;
+      var added = 0;
+      Object.keys(inc.log || {}).forEach(function(k){
+        if(!S.log[k]){ S.log[k] = inc.log[k]; added++; }
+      });
+      Object.keys(inc.draft || {}).forEach(function(k){
+        if(!S.draft[k]) S.draft[k] = inc.draft[k];
+      });
+      var seen = {};
+      S.bw.forEach(function(b){ seen[b.d] = 1; });
+      (inc.bw || []).forEach(function(b){ if(!seen[b.d]){ S.bw.push(b); seen[b.d]=1; } });
+      S.bw.sort(function(a,b){ return a.d < b.d ? -1 : 1; });
+      save(); renderAll();
+      alert('Imported ' + added + ' session' + (added===1?'':'s') + ' and ' +
+            S.bw.length + ' weigh-ins.');
+    }catch(err){ alert('That file could not be read.'); }
+  };
+  fr.readAsText(f);
+  e.target.value = '';
 });
 
 document.getElementById('reset').addEventListener('click', function(){
