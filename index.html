@@ -123,6 +123,24 @@ svg.chart{display:block;width:100%;height:180px;overflow:visible}
 .tiny{font-size:.71rem;color:var(--dim);margin-top:.45rem}
 .plates{font-size:.8rem;color:var(--dim);margin-top:.5rem}
 .plates b{color:var(--txt)}
+
+/* session report */
+.rsum{font-size:.86rem;line-height:1.6;margin:0 0 1rem;color:var(--dim)}
+.rsum b{color:var(--txt)}
+.rstats{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:1rem}
+.rstat{background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:.55rem .6rem}
+.rstat .n{font-size:1.05rem;font-weight:650;letter-spacing:-.02em}
+.rstat .l{font-size:.64rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+.rex{border-top:1px solid var(--line);padding:.65rem 0}
+.rex:first-of-type{border-top:none}
+.rexh{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
+.rexn{font-weight:600;font-size:.9rem}
+.rexv{font-size:.68rem;font-weight:650;letter-spacing:.03em;white-space:nowrap}
+.v-up{color:var(--up)} .v-hold{color:var(--flat)} .v-down{color:var(--down)}
+.v-new{color:var(--dim)} .v-pr{color:var(--pr)}
+.rexd{font-size:.78rem;color:var(--dim);margin-top:.18rem}
+.rexn2{font-size:.8rem;color:var(--accent);margin-top:.28rem;font-weight:500}
+.rflag{font-size:.8rem;color:var(--flat);margin-top:.28rem}
 </style>
 </head>
 <body>
@@ -163,6 +181,11 @@ svg.chart{display:block;width:100%;height:180px;overflow:visible}
     <div class="days" id="days"></div>
     <div id="exlist"></div>
     <button class="save" id="save">Finish session</button>
+  </div>
+
+  <div class="card" id="reportcard" style="display:none">
+    <h2>Session report <em id="repwhen"></em></h2>
+    <div id="report"></div>
   </div>
 
   <div class="card">
@@ -374,14 +397,11 @@ function renderEx(){
 
     /* next-session cue */
     var cue = '';
-    if(prev){
-      if(prev.r < e.hi) cue = 'Target: ' + prev.w + ' kg x ' + (prev.r+1) + ' reps';
-      else {
-        var inc = e.bar ? 2.5 : 2.5;
-        cue = 'Target: ' + (prev.w + inc) + ' kg x ' + e.lo + ' reps';
-      }
+    var exKeys = keysFor(e.n);
+    if(exKeys.length){
+      cue = assess(e.n, e, exKeys[exKeys.length-1]).next;
     } else {
-      cue = 'Find a weight you can do ' + e.lo + ' reps with, 2 left in the tank';
+      cue = 'Find a load you can take to ' + e.lo + ' reps with 2 left in the tank.';
     }
 
     /* set rows */
@@ -494,6 +514,191 @@ function renderGoal(){
     'Target is <b>0.75% of starting bodyweight per month</b> - the intermediate band, and the ' +
     'realistic ceiling for 14 weeks. It needs a small calorie surplus and 1.6-2.2 g protein per kg. ' +
     '<b>Weigh in weekly, same morning, same conditions.</b>';
+}
+
+/* ===================== ANALYSIS ENGINE ===================== */
+
+/* how much to add, scaled to the load */
+function step(w){ return w < 12 ? 1 : (w < 45 ? 2.5 : 5); }
+
+function setsOf(logEntry, name){
+  var s = logEntry && logEntry.sets && logEntry.sets[name];
+  return (s || []).filter(function(x){ return x && x.w > 0 && x.r > 0; });
+}
+function tonnage(sets){
+  var t = 0; sets.forEach(function(s){ t += s.w * s.r; }); return t;
+}
+function bestOf(sets){
+  var b = null;
+  sets.forEach(function(s){ if(!b || e1rm(s.w,s.r) > e1rm(b.w,b.r)) b = s; });
+  return b;
+}
+function totalReps(sets){ var n=0; sets.forEach(function(s){ n+=s.r; }); return n; }
+
+/* every logged session key for an exercise, oldest first */
+function keysFor(name){
+  return Object.keys(S.log).sort().filter(function(k){ return setsOf(S.log[k], name).length; });
+}
+
+/* the verdict + the prescription for next time */
+function assess(name, meta, thisKey){
+  var ks = keysFor(name);
+  var idx = ks.indexOf(thisKey);
+  var now = setsOf(S.log[thisKey], name);
+  var prevKey = idx > 0 ? ks[idx-1] : null;
+  var prev = prevKey ? setsOf(S.log[prevKey], name) : [];
+
+  var nowBest = bestOf(now), prevBest = prev.length ? bestOf(prev) : null;
+  var nowE = nowBest ? e1rm(nowBest.w, nowBest.r) : 0;
+  var prevE = prevBest ? e1rm(prevBest.w, prevBest.r) : 0;
+
+  /* all-time best excluding this session */
+  var atb = 0;
+  ks.forEach(function(k){
+    if(k === thisKey) return;
+    var b = bestOf(setsOf(S.log[k], name));
+    if(b) atb = Math.max(atb, e1rm(b.w, b.r));
+  });
+
+  var out = { name:name, sets:now.length, reps:totalReps(now), tonnage:tonnage(now) };
+  out.detail = now.map(function(s){ return s.w + ' x ' + s.r; }).join(', ');
+
+  /* verdict */
+  if(!prev.length){
+    out.verdict = 'baseline'; out.cls = 'v-new';
+    out.why = 'First time logged. This is the number everything else gets measured against.';
+  } else {
+    var pct = ((nowE - prevE) / prevE) * 100;
+    if(nowE > atb * 1.001){ out.verdict = 'new PR'; out.cls = 'v-pr'; }
+    else if(pct > 1.5)   { out.verdict = 'up ' + pct.toFixed(1) + '%'; out.cls = 'v-up'; }
+    else if(pct < -1.5)  { out.verdict = 'down ' + Math.abs(pct).toFixed(1) + '%'; out.cls = 'v-down'; }
+    else                 { out.verdict = 'held'; out.cls = 'v-hold'; }
+    out.why = 'Last time ' + prevBest.w + ' x ' + prevBest.r +
+              ' (' + prevE.toFixed(1) + ' kg est. 1RM), today ' +
+              nowBest.w + ' x ' + nowBest.r + ' (' + nowE.toFixed(1) + ').';
+  }
+
+  /* ---- prescription: double progression ---- */
+  var topW = 0;
+  now.forEach(function(s){ topW = Math.max(topW, s.w); });
+  var atTop = now.filter(function(s){ return s.w >= topW && s.r >= meta.hi; }).length;
+  var working = now.filter(function(s){ return s.w >= topW; }).length;
+  var minRepAtTop = 99;
+  now.forEach(function(s){ if(s.w >= topW) minRepAtTop = Math.min(minRepAtTop, s.r); });
+
+  /* two sessions of decline in a row = deload */
+  var sliding = false;
+  if(idx >= 2){
+    var e2 = bestOf(setsOf(S.log[ks[idx-2]], name));
+    if(e2 && prevE < e1rm(e2.w,e2.r)*0.995 && nowE < prevE*0.995) sliding = true;
+  }
+
+  if(sliding){
+    out.next = 'Deload: ' + (Math.round((topW*0.9)/1.25)*1.25) + ' kg x ' + meta.lo +
+               ' reps, then build back.';
+    out.flag = 'Two sessions down in a row. That is fatigue or sleep, not the program.';
+  } else if(working && atTop >= working){
+    var nw = topW + step(topW);
+    out.next = 'Add weight: ' + nw + ' kg x ' + meta.lo + ' reps, all sets.';
+  } else if(minRepAtTop < 99){
+    var target = Math.min(meta.hi, minRepAtTop + 1);
+    out.next = 'Same weight: ' + topW + ' kg x ' + target + ' reps on every set.';
+  } else {
+    out.next = 'Find a load you can take to ' + meta.lo + ' reps with 2 left in the tank.';
+  }
+
+  /* inconsistent sets - reps swinging more than 3 across the same weight */
+  if(working >= 3){
+    var hiR = 0, loR = 99;
+    now.forEach(function(s){ if(s.w >= topW){ hiR = Math.max(hiR,s.r); loR = Math.min(loR,s.r); } });
+    if(hiR - loR >= 3 && !out.flag)
+      out.flag = 'Reps swung from ' + loR + ' to ' + hiR + ' at the same weight - ' +
+                 'first set was probably undershot. Start at the working weight next time.';
+  }
+  return out;
+}
+
+/* weekly volume, reused by the report */
+function weekCounts(){
+  var monday = new Date();
+  monday.setDate(monday.getDate() - ((monday.getDay()+6)%7));
+  monday.setHours(0,0,0,0);
+  var c = {}; MUSCLES.forEach(function(m){ c[m]=0; });
+  Object.keys(S.log).forEach(function(k){
+    if(new Date(k.slice(0,10)) < monday) return;
+    var d = dayById(S.log[k].day); if(!d) return;
+    d.ex.forEach(function(e){
+      var n = setsOf(S.log[k], e.n).length;
+      e.mg.forEach(function(m){ if(c[m]!==undefined) c[m] += n; });
+    });
+  });
+  return c;
+}
+
+function renderReport(){
+  var ks = Object.keys(S.log).sort();
+  if(!ks.length){ document.getElementById('reportcard').style.display = 'none'; return; }
+  document.getElementById('reportcard').style.display = '';
+
+  var k = ks[ks.length-1], entry = S.log[k], d = dayById(entry.day);
+  document.getElementById('repwhen').textContent =
+    d.name + ', ' + new Date(k.slice(0,10)).toLocaleDateString(undefined,{day:'numeric',month:'short'});
+
+  var rows = [], ton = 0, sets = 0, ups = 0, downs = 0, prs = 0;
+  d.ex.forEach(function(e){
+    if(!setsOf(entry, e.n).length) return;
+    var a = assess(e.n, e, k);
+    ton += a.tonnage; sets += a.sets;
+    if(a.cls === 'v-up') ups++;
+    if(a.cls === 'v-pr'){ prs++; ups++; }
+    if(a.cls === 'v-down') downs++;
+    rows.push('<div class="rex"><div class="rexh"><span class="rexn">' + e.n + '</span>' +
+      '<span class="rexv ' + a.cls + '">' + a.verdict + '</span></div>' +
+      '<div class="rexd">' + a.detail + '</div>' +
+      '<div class="rexd">' + a.why + '</div>' +
+      '<div class="rexn2">Next: ' + a.next + '</div>' +
+      (a.flag ? '<div class="rflag">' + a.flag + '</div>' : '') + '</div>');
+  });
+
+  /* headline narrative */
+  var total = ks.length;
+  var line;
+  if(total === 1){
+    line = 'First session in the book. Nothing to compare against yet - from here every ' +
+           'session gets measured against the last one.';
+  } else if(ups && !downs){
+    line = '<b>' + ups + ' of ' + rows.length + ' lifts moved up' +
+           (prs ? ', including ' + prs + ' personal best' + (prs>1?'s':'') : '') +
+           '.</b> Nothing went backwards. Keep the loads climbing.';
+  } else if(ups >= downs){
+    line = '<b>' + ups + ' up, ' + downs + ' down.</b> Normal. Progress is not linear ' +
+           'week to week - the trend over a month is what counts.';
+  } else {
+    line = '<b>' + downs + ' lifts down, ' + ups + ' up.</b> One off session means nothing. ' +
+           'Two in a row usually means sleep or food, not programming.';
+  }
+
+  /* volume gaps */
+  var c = weekCounts(), thin = [];
+  MUSCLES.forEach(function(m){ if(c[m] < 10) thin.push(m + ' (' + c[m] + ')'); });
+  var volLine = thin.length
+    ? 'Still under 10 sets this week: <b>' + thin.join(', ') + '</b>.'
+    : 'Every muscle is at 10+ sets this week. Volume is where it needs to be.';
+
+  var expected = Math.min(TOTAL, Math.floor(weeksElapsed()*PER_WEEK));
+  var adh = expected > 0 ? Math.round((total/expected)*100) : 100;
+
+  document.getElementById('report').innerHTML =
+    '<div class="rstats">' +
+      '<div class="rstat"><div class="n">' + Math.round(ton).toLocaleString() + ' kg</div>' +
+      '<div class="l">Total load</div></div>' +
+      '<div class="rstat"><div class="n">' + sets + '</div><div class="l">Hard sets</div></div>' +
+      '<div class="rstat"><div class="n">' + total + '/' + TOTAL + '</div>' +
+      '<div class="l">Sessions</div></div>' +
+    '</div>' +
+    '<p class="rsum">' + line + ' ' + volLine +
+    ' You are at <b>' + adh + '%</b> of the sessions you should have done by now.</p>' +
+    rows.join('');
 }
 
 function renderPick(){
@@ -635,8 +840,8 @@ document.getElementById('save').addEventListener('click', function(){
   S.log[slot] = { day:S.day, sets:clean, at:new Date().toISOString() };
   delete S.draft[k];                 /* wipe the sheet for next time */
   save(); renderAll();
-  window.scrollTo({ top:0, behavior:'smooth' });
-  alert('Session saved - ' + n + ' sets. The sheet is clear for next time.');
+  var rc = document.getElementById('reportcard');
+  if(rc) rc.scrollIntoView({ behavior:'smooth', block:'start' });
 });
 
 document.getElementById('logbw').addEventListener('click', function(){
@@ -689,7 +894,8 @@ document.getElementById('reset').addEventListener('click', function(){
 });
 
 function renderAll(){
-  renderDays(); renderEx(); renderVolume(); renderGoal(); renderPick(); renderChart(); renderCal();
+  renderDays(); renderEx(); renderVolume(); renderGoal();
+  renderPick(); renderChart(); renderCal(); renderReport();
 }
 /* ---- service worker: offline in the gym ---- */
 if('serviceWorker' in navigator){
