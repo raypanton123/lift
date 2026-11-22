@@ -86,16 +86,26 @@ tr.done input{opacity:.5}
 .save.done{background:var(--up)}
 .save.idle{background:#2a2f36;color:var(--dim)}
 
-/* rest timer */
-#rest{position:fixed;left:0;right:0;bottom:0;background:#15171b;border-top:1px solid var(--line);
-  padding:.7rem .9rem calc(.7rem + env(safe-area-inset-bottom));display:none;z-index:40}
-#rest.on{display:block}
-#rest .rt{display:flex;align-items:center;gap:.8rem;max-width:720px;margin:0 auto}
-#rest .num{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;min-width:74px}
-#rest .rb{height:5px;background:#22262c;border-radius:99px;flex:1;overflow:hidden}
-#rest .rb i{display:block;height:100%;background:var(--accent);transition:width 1s linear}
-#rest button{padding:.45rem .7rem;background:transparent;border:1px solid var(--line);
-  color:var(--txt);border-radius:8px;font:inherit;font-size:.8rem;cursor:pointer}
+/* rest timer - full screen */
+#rest{position:fixed;inset:0;background:#0b0c0e;display:none;z-index:60;
+  flex-direction:column;align-items:center;justify-content:center;
+  padding:1.5rem 1.2rem calc(1.5rem + env(safe-area-inset-bottom))}
+#rest.on{display:flex}
+#rest .rwrap{position:relative;width:min(78vw,330px);aspect-ratio:1}
+#rest svg{width:100%;height:100%;display:block}
+#rest .rmid{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;pointer-events:none}
+#rest .rnum{font-size:3.3rem;font-weight:300;font-variant-numeric:tabular-nums;
+  letter-spacing:-.03em;color:#f4a23c;line-height:1}
+#rest .rlab{font-size:.78rem;letter-spacing:.22em;color:var(--dim);margin-top:.6rem}
+#rest .rwhy{max-width:330px;text-align:center;font-size:.82rem;line-height:1.6;
+  color:var(--dim);margin:1.6rem 0 0}
+#rest .rwhy b{color:var(--txt)}
+#rest .rbtns{display:flex;gap:.5rem;margin-top:1.5rem}
+#rest .rbtns button{padding:.62rem 1.15rem;background:transparent;border:1px solid var(--line);
+  color:var(--txt);border-radius:99px;font:inherit;font-size:.85rem;cursor:pointer}
+#rest .rbtns button:active{background:var(--card2)}
+#rest .seg{transition:opacity .25s}
 
 /* volume */
 .vol{display:grid;gap:.45rem}
@@ -228,9 +238,17 @@ svg.chart{display:block;width:100%;height:180px;overflow:visible}
 </div>
 
 <div id="rest">
-  <div class="rt">
-    <div class="num" id="rtnum">2:00</div>
-    <div class="rb"><i id="rtbar" style="width:100%"></i></div>
+  <div class="rwrap">
+    <svg id="rring" viewBox="0 0 300 300"></svg>
+    <div class="rmid">
+      <div class="rnum" id="rtnum">2:00</div>
+      <div class="rlab" id="rtlab">REST</div>
+    </div>
+  </div>
+  <p class="rwhy">Rest properly. The next set only drives adaptation if you can hit it
+     hard - cut the rest and you just lose reps. <b>Chase progression, not the pump.</b></p>
+  <div class="rbtns">
+    <button id="rtpause">Pause</button>
     <button id="rtadd">+30s</button>
     <button id="rtskip">Skip</button>
   </div>
@@ -765,30 +783,121 @@ function renderCal(){
 }
 
 /* ============================ REST TIMER ============================ */
-var rt = { left:0, total:0, id:null };
+/* ---- rest timer: wall-clock based, so locking the phone cannot stop it ---- */
+var SEGS = 64;
+var rt = { endAt:0, total:0, id:null, paused:false, held:0, lock:null, done:false };
+
+/* build the petal ring once */
+(function buildRing(){
+  var svg = document.getElementById('rring'), cx = 150, cy = 150, inner = 86, outer = 132, out = '';
+  for(var i=0;i<SEGS;i++){
+    var frac = i/SEGS;
+    var ang = -90 + frac*360;                       /* start at 12 o'clock */
+    var hue = 22 + frac*238;                        /* orange -> yellow -> green -> teal -> blue */
+    var len = (outer-inner)/2;
+    var ry  = len * (0.55 + 0.45*Math.sin(Math.PI*frac));   /* petals swell mid-arc */
+    out += '<ellipse class="seg" data-i="' + i + '" cx="' + cx + '" cy="' + (cy-(inner+len)) +
+           '" rx="3.4" ry="' + ry.toFixed(1) + '" fill="hsl(' + hue.toFixed(0) + ',72%,55%)" ' +
+           'transform="rotate(' + ang.toFixed(2) + ' ' + cx + ' ' + cy + ')"/>';
+  }
+  svg.innerHTML = out;
+})();
+
+function remaining(){
+  if(rt.paused) return rt.held;
+  return Math.max(0, Math.round((rt.endAt - Date.now())/1000));
+}
+
+function paintRing(left){
+  var frac = rt.total > 0 ? left/rt.total : 0;
+  var lit = Math.round(frac*SEGS);
+  var segs = document.querySelectorAll('#rring .seg');
+  for(var i=0;i<segs.length;i++) segs[i].style.opacity = (i < lit) ? 1 : 0.11;
+}
+
 function startRest(sec){
-  rt.left = sec; rt.total = sec;
+  rt.total = sec; rt.endAt = Date.now() + sec*1000;
+  rt.paused = false; rt.done = false;
   document.getElementById('rest').classList.add('on');
+  document.getElementById('rtpause').textContent = 'Pause';
+  document.getElementById('rtlab').textContent = 'REST';
+  requestLock();
   clearInterval(rt.id);
   tickRest();
-  rt.id = setInterval(tickRest, 1000);
+  rt.id = setInterval(tickRest, 250);
 }
+
 function tickRest(){
-  var m = Math.floor(rt.left/60), s = rt.left%60;
+  var left = remaining();
+  var m = Math.floor(left/60), s = left%60;
   document.getElementById('rtnum').textContent = m + ':' + (s<10?'0':'') + s;
-  document.getElementById('rtbar').style.width = (rt.left/rt.total*100) + '%';
-  if(rt.left <= 0){
+  paintRing(left);
+  if(left <= 0 && !rt.paused && !rt.done){
+    rt.done = true;
     clearInterval(rt.id);
-    document.getElementById('rest').classList.remove('on');
-    if(navigator.vibrate) navigator.vibrate([200,100,200]);
-    return;
+    document.getElementById('rtlab').textContent = 'GO';
+    document.getElementById('rtnum').textContent = '0:00';
+    buzz();
+    setTimeout(endRest, 2200);
   }
-  rt.left--;
 }
-document.getElementById('rtadd').addEventListener('click', function(){ rt.left += 30; rt.total += 30; });
-document.getElementById('rtskip').addEventListener('click', function(){
-  clearInterval(rt.id); document.getElementById('rest').classList.remove('on');
+
+function endRest(){
+  clearInterval(rt.id);
+  document.getElementById('rest').classList.remove('on');
+  releaseLock();
+}
+
+/* vibrate + a short tone, so it still lands if the phone is in a pocket */
+function buzz(){
+  if(navigator.vibrate) navigator.vibrate([300,120,300,120,300]);
+  try{
+    var C = window.AudioContext || window.webkitAudioContext; if(!C) return;
+    var ctx = new C(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = 880;
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.9);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime + 0.95);
+  }catch(e){}
+}
+
+/* keep the screen awake while resting, where the browser allows it */
+function requestLock(){
+  if(!('wakeLock' in navigator)) return;
+  navigator.wakeLock.request('screen').then(function(l){ rt.lock = l; }).catch(function(){});
+}
+function releaseLock(){
+  if(rt.lock){ try{ rt.lock.release(); }catch(e){} rt.lock = null; }
+}
+
+/* coming back from a locked screen: recompute immediately, re-acquire the lock */
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState !== 'visible') return;
+  if(!document.getElementById('rest').classList.contains('on')) return;
+  requestLock();
+  tickRest();
 });
+
+document.getElementById('rtpause').addEventListener('click', function(){
+  if(rt.paused){
+    rt.endAt = Date.now() + rt.held*1000; rt.paused = false;
+    this.textContent = 'Pause'; document.getElementById('rtlab').textContent = 'REST';
+  } else {
+    rt.held = remaining(); rt.paused = true;
+    this.textContent = 'Resume'; document.getElementById('rtlab').textContent = 'PAUSED';
+  }
+  tickRest();
+});
+document.getElementById('rtadd').addEventListener('click', function(){
+  rt.total += 30;
+  if(rt.paused) rt.held += 30; else rt.endAt += 30000;
+  rt.done = false;
+  if(!rt.id) rt.id = setInterval(tickRest, 250);
+  tickRest();
+});
+document.getElementById('rtskip').addEventListener('click', endRest);
 
 /* ============================ EVENTS ============================ */
 document.getElementById('days').addEventListener('click', function(e){
