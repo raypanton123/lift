@@ -159,6 +159,8 @@ tr.done input{opacity:.45}
   font-weight:750;cursor:pointer;font-size:.95rem;
   background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d0a}
 .save.idle{background:#1c251c;color:var(--dim)}
+.save.warn{background:linear-gradient(160deg,#fbbf24,#f59e0b);color:#2a1c00}
+.hh em.warn{color:var(--warn)}
 
 /* ---------- report ---------- */
 .rsum{font-size:.85rem;line-height:1.6;margin:0 0 .9rem;color:var(--dim)}
@@ -305,6 +307,12 @@ nav button.on{background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d
         <span class="tiny" id="bwnote" style="margin:0"></span>
       </div>
       <p class="note" id="goalnote"></p>
+    </div>
+
+    <div class="card" id="bupcard">
+      <div class="hh"><h2>Backup</h2><em id="bupwhen"></em></div>
+      <p class="note" style="margin-top:0" id="buptext"></p>
+      <button class="save" id="bupbtn" style="margin-top:.6rem">Back up now</button>
     </div>
   </section>
 
@@ -807,6 +815,23 @@ function renderHome(){
   document.getElementById('lab-done').textContent=done+' / '+TOTAL;
   document.getElementById('bwnote').textContent=S.bw.length?
     S.bw.length+' weigh-ins, latest '+S.bw[S.bw.length-1].kg+' kg':'no weigh-ins yet';
+  /* backup status */
+  var sessions=Object.keys(S.log).length, since=sessions-(S.backupAt||0);
+  var days=S.lastBackup?Math.floor((Date.now()-S.lastBackup)/86400000):null;
+  var stale=(days===null&&sessions>0)||days>7||since>=3;
+  document.getElementById('bupwhen').textContent =
+    S.lastBackup ? (days===0?'today':days+' day'+(days===1?'':'s')+' ago') : 'never';
+  document.getElementById('bupwhen').className = stale?'warn':'';
+  document.getElementById('buptext').innerHTML = stale
+    ? '<b>Worth doing now.</b> ' + (since>0?since+' session'+(since===1?'':'s')+
+      ' logged since your last backup. ':'') +
+      'One tap saves everything - sessions, weigh-ins and photos - into Files.'
+    : 'Everything is saved to this phone only. A backup file protects you if the app or '+
+      'its data is ever cleared.';
+  var bb=document.getElementById('bupbtn');
+  bb.className='save'+(stale?' warn':'');
+  bb.textContent = stale?'Back up now':'Back up again';
+
   if(VIS.length) renderVision();
   document.getElementById('goalnote').innerHTML=
     'Target is <b>0.75% of starting bodyweight per month</b> - the intermediate band, and the '+
@@ -1127,6 +1152,14 @@ document.getElementById('save').addEventListener('click', function(){
   var slot=k, i=2; while(S.log[slot]) slot=k+'#'+(i++);
   S.log[slot]={ day:S.day, sets:clean, at:new Date().toISOString() };
   delete S.draft[k]; save(); renderAll(); go('stats');
+  var done=Object.keys(S.log).length;
+  if(done-(S.backupAt||0) >= 3){
+    setTimeout(function(){
+      if(confirm('You have logged '+(done-(S.backupAt||0))+' sessions since your last backup.\n\n'+
+                 'Save a backup file now? It takes one tap and protects everything.')) doExport();
+      else { S.backupAt = done - 2; save(); renderHome(); }
+    }, 700);
+  }
 });
 document.getElementById('logbw').addEventListener('click', function(){
   var v=parseFloat(document.getElementById('bw').value); if(!v) return;
@@ -1148,16 +1181,45 @@ document.getElementById('importfile').addEventListener('change', function(e){
       (inc.bw||[]).forEach(function(b){ if(!seen[b.d]){ S.bw.push(b); seen[b.d]=1; } });
       S.bw.sort(function(a,b){ return a.d<b.d?-1:1; });
       save(); renderAll();
-      alert('Imported '+added+' session'+(added===1?'':'s')+'.');
+
+      /* restore photos too, skipping any already present */
+      var pics = inc.photos || [];
+      if(pics.length && IDB){
+        var have = {}; VIS.forEach(function(v){ have[v.at] = 1; });
+        var fresh = pics.filter(function(p){ return !have[p.at]; });
+        if(fresh.length){
+          var st = tx('readwrite'), left = fresh.length;
+          fresh.forEach(function(p){
+            var rq = st.add({ data:p.data, at:p.at || Date.now() });
+            rq.onsuccess = rq.onerror = function(){
+              if(--left === 0) loadVision().then(renderVision);
+            };
+          });
+        }
+      }
+      alert('Imported '+added+' session'+(added===1?'':'s')+
+            (pics.length?' and '+pics.length+' photos':'')+'.');
     }catch(err){ alert('That file could not be read.'); }
   };
   fr.readAsText(f); e.target.value='';
 });
-document.getElementById('export').addEventListener('click', function(){
-  var a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,2)],{type:'application/json'}));
-  a.download='lift-'+today()+'.json'; a.click();
-});
+/* ---- full backup: training data AND the photos out of IndexedDB ---- */
+function doExport(){
+  return loadVision().then(function(){
+    var payload = JSON.parse(JSON.stringify(S));
+    payload.photos = VIS.map(function(v){ return { at:v.at, data:v.data }; });
+    payload.exportedAt = new Date().toISOString();
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(payload)],{type:'application/json'}));
+    a.download = 'lift-backup-' + today() + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    S.lastBackup = Date.now();
+    S.backupAt = Object.keys(S.log).length;
+    save(); renderHome();
+  });
+}
+document.getElementById('export').addEventListener('click', doExport);
+document.getElementById('bupbtn').addEventListener('click', doExport);
 document.getElementById('reset').addEventListener('click', function(){
   if(confirm('Delete everything?')){ localStorage.removeItem(KEY); S=load(); renderAll(); }
 });
