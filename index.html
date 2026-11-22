@@ -53,6 +53,34 @@ body{margin:0;background:var(--bg);color:var(--txt);
 .wd.now em,.wd.now b{color:#0a0d0a}
 .wd.now i{background:#0a0d0a}
 
+/* ---------- hero image ---------- */
+.shot{position:relative;border-radius:22px;overflow:hidden;margin-bottom:1rem;
+  aspect-ratio:16/11;background:#141a14;border:1px solid var(--line)}
+.shot img{width:100%;height:100%;object-fit:cover;object-position:50% 22%;display:block}
+.shot .sc{position:absolute;inset:0;
+  background:linear-gradient(to top,rgba(5,8,5,.92) 6%,rgba(5,8,5,.25) 48%,rgba(5,8,5,.1))}
+.shot .st{position:absolute;left:1rem;right:1rem;bottom:.9rem}
+.shot .st em{font-style:normal;font-size:.68rem;letter-spacing:.14em;color:var(--lime)}
+.shot .st b{display:block;font-size:1.35rem;letter-spacing:-.02em;margin-top:.1rem}
+.shot .st i{display:block;font-style:normal;font-size:.74rem;color:#b9c4b6;margin-top:.15rem}
+.shot .pg{position:absolute;top:.7rem;right:.8rem;display:flex;gap:.22rem}
+.shot .pg s{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.35);
+  text-decoration:none}
+.shot .pg s.on{background:var(--lime)}
+.shot.empty{display:grid;place-items:center;aspect-ratio:16/7}
+.shot.empty p{color:var(--dim);font-size:.84rem;text-align:center;padding:1rem;margin:0}
+
+/* ---------- vision strip ---------- */
+.vstrip{display:flex;gap:.5rem;overflow-x:auto;padding-bottom:.2rem;-webkit-overflow-scrolling:touch}
+.vstrip::-webkit-scrollbar{display:none}
+.vthumb{position:relative;flex:none;width:88px;aspect-ratio:2/3;border-radius:13px;
+  overflow:hidden;border:1px solid var(--line)}
+.vthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.vthumb button{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;
+  border:none;background:rgba(5,8,5,.72);color:#fff;font-size:.72rem;line-height:1;cursor:pointer}
+.vadd{flex:none;width:88px;aspect-ratio:2/3;border-radius:13px;border:1px dashed #37463a;
+  background:transparent;color:var(--dim);font:inherit;font-size:1.6rem;cursor:pointer}
+
 /* ---------- tiles ---------- */
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.6rem}
 .tile{background:linear-gradient(155deg,#1a221a,#0f140f);border:1px solid var(--line);
@@ -227,8 +255,7 @@ nav button.on{background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d
 
   <!-- ======================= HOME ======================= -->
   <section class="page on" id="p-home">
-    <p class="hey">Hey Ray</p>
-    <h1 class="hero">KEEP<br><span>STACKING SETS</span></h1>
+    <div class="shot empty" id="shot"><p>Add a photo of where you are heading</p></div>
 
     <div class="week" id="week"></div>
 
@@ -261,6 +288,13 @@ nav button.on{background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d
         </div>
         <div class="go">&#9654;</div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="hh"><h2>Vision</h2><em id="vcount"></em></div>
+      <div class="vstrip" id="vstrip"></div>
+      <input type="file" id="vfile" accept="image/*" multiple style="display:none">
+      <p class="tiny">Stored on this phone only. Tap the top image to cycle through them.</p>
     </div>
 
     <div class="card">
@@ -575,6 +609,119 @@ function streak(){
   return n;
 }
 
+/* ============================ VISION PHOTOS ============================ */
+/* kept in IndexedDB - photos are far too big for localStorage */
+var IDB = null, VIS = [], visIdx = 0;
+
+function openDB(){
+  return new Promise(function(res,rej){
+    var r = indexedDB.open('lift-img', 1);
+    r.onupgradeneeded = function(e){
+      if(!e.target.result.objectStoreNames.contains('img'))
+        e.target.result.createObjectStore('img', { keyPath:'id', autoIncrement:true });
+    };
+    r.onsuccess = function(e){ IDB = e.target.result; res(IDB); };
+    r.onerror = rej;
+  });
+}
+function tx(mode){ return IDB.transaction('img', mode).objectStore('img'); }
+
+function loadVision(){
+  return new Promise(function(res){
+    if(!IDB) return res([]);
+    var out = [], c = tx('readonly').openCursor();
+    c.onsuccess = function(e){
+      var cur = e.target.result;
+      if(cur){ out.push(cur.value); cur.continue(); }
+      else { VIS = out; res(out); }
+    };
+    c.onerror = function(){ res([]); };
+  });
+}
+
+/* shrink before storing so a dozen photos stay small */
+function shrink(file){
+  return new Promise(function(res){
+    var fr = new FileReader();
+    fr.onload = function(){
+      var im = new Image();
+      im.onload = function(){
+        var max = 1100, sc = Math.min(1, max/Math.max(im.width, im.height));
+        var cv = document.createElement('canvas');
+        cv.width = Math.round(im.width*sc); cv.height = Math.round(im.height*sc);
+        cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+        res(cv.toDataURL('image/jpeg', 0.82));
+      };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+function addVision(files){
+  var jobs = [];
+  for(var i=0;i<files.length;i++) jobs.push(shrink(files[i]));
+  return Promise.all(jobs).then(function(urls){
+    return new Promise(function(res){
+      var st = tx('readwrite'), left = urls.length;
+      urls.forEach(function(u){
+        var rq = st.add({ data:u, at:Date.now() });
+        rq.onsuccess = rq.onerror = function(){ if(--left === 0) res(); };
+      });
+    });
+  }).then(loadVision).then(renderVision);
+}
+
+function delVision(id){
+  return new Promise(function(res){
+    var rq = tx('readwrite').delete(id);
+    rq.onsuccess = rq.onerror = res;
+  }).then(loadVision).then(renderVision);
+}
+
+function renderVision(){
+  var shot = document.getElementById('shot');
+  var nd = nextDay();
+
+  if(!VIS.length){
+    shot.className = 'shot empty';
+    shot.innerHTML = '<p>Add a photo of where you are heading</p>';
+  } else {
+    if(visIdx >= VIS.length) visIdx = 0;
+    shot.className = 'shot';
+    shot.innerHTML =
+      '<img src="' + VIS[visIdx].data + '" alt="">' +
+      '<div class="sc"></div>' +
+      '<div class="pg">' + VIS.map(function(_,i){
+        return '<s class="' + (i===visIdx?'on':'') + '"></s>'; }).join('') + '</div>' +
+      '<div class="st"><em>28 FEBRUARY</em><b>Hey Ray</b>' +
+      '<i>' + nd.name + ' is next. ' + Object.keys(S.log).length + ' of ' + TOTAL +
+      ' sessions done.</i></div>';
+  }
+
+  document.getElementById('vcount').textContent =
+    VIS.length ? VIS.length + ' photo' + (VIS.length===1?'':'s') : '';
+  document.getElementById('vstrip').innerHTML =
+    VIS.map(function(v){
+      return '<div class="vthumb"><img src="' + v.data + '" alt="">' +
+             '<button data-del="' + v.id + '">&times;</button></div>';
+    }).join('') + '<button class="vadd" id="vaddbtn">+</button>';
+}
+
+document.getElementById('shot').addEventListener('click', function(){
+  if(!VIS.length){ document.getElementById('vfile').click(); return; }
+  visIdx = (visIdx+1) % VIS.length; renderVision();
+});
+document.getElementById('vstrip').addEventListener('click', function(e){
+  var d = e.target.closest('[data-del]');
+  if(d){ delVision(parseInt(d.dataset.del,10)); return; }
+  if(e.target.closest('#vaddbtn')) document.getElementById('vfile').click();
+});
+document.getElementById('vfile').addEventListener('change', function(e){
+  if(e.target.files.length) addVision(e.target.files);
+  e.target.value = '';
+});
+
 /* ============================ HOME ============================ */
 function renderHome(){
   /* week strip */
@@ -671,6 +818,7 @@ function renderHome(){
   document.getElementById('lab-done').textContent=done+' / '+TOTAL;
   document.getElementById('bwnote').textContent=S.bw.length?
     S.bw.length+' weigh-ins, latest '+S.bw[S.bw.length-1].kg+' kg':'no weigh-ins yet';
+  if(VIS.length) renderVision();
   document.getElementById('goalnote').innerHTML=
     'Target is <b>0.75% of starting bodyweight per month</b> - the intermediate band, and the '+
     'realistic ceiling for 14 weeks. Needs a small calorie surplus and 1.6-2.2 g protein per kg. '+
@@ -1031,6 +1179,7 @@ function renderAll(){
   renderPick(); renderChart(); renderCal(); renderReport();
 }
 renderAll();
+openDB().then(loadVision).then(renderVision).catch(function(){});
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', function(){
