@@ -84,6 +84,7 @@ tr.done input{opacity:.5}
 .save{width:100%;margin-top:1rem;padding:.85rem;background:var(--accent);color:#08101d;
   border:none;border-radius:10px;font:inherit;font-weight:700;cursor:pointer;font-size:.95rem}
 .save.done{background:var(--up)}
+.save.idle{background:#2a2f36;color:var(--dim)}
 
 /* rest timer */
 #rest{position:fixed;left:0;right:0;bottom:0;background:#15171b;border-top:1px solid var(--line);
@@ -286,7 +287,13 @@ function load(){
   return { log:{}, bw:[], day:'lowerA', draft:{} };
 }
 function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
-function today(){ return new Date().toISOString().slice(0,10); }
+/* local date, not UTC - a 7am session in Newcastle was logging as yesterday */
+function today(){
+  var d = new Date();
+  return d.getFullYear() + '-' +
+         ('0'+(d.getMonth()+1)).slice(-2) + '-' +
+         ('0'+d.getDate()).slice(-2);
+}
 function e1rm(w,r){ return w * (1 + r/30); }
 function dayById(id){ for(var i=0;i<PROGRAM.length;i++) if(PROGRAM[i].id===id) return PROGRAM[i]; }
 function key(){ return today() + '|' + S.day; }
@@ -385,7 +392,6 @@ function renderEx(){
       if(h.length){
         var lastKey = null;
         Object.keys(S.log).sort().forEach(function(kk){
-          if(kk === k) return;                      /* never show today as "last" */
           if(S.log[kk].sets && S.log[kk].sets[e.n]) lastKey = kk;
         });
         if(lastKey && S.log[lastKey].sets[e.n][i]) pset = S.log[lastKey].sets[e.n][i];
@@ -423,10 +429,10 @@ function renderEx(){
       '<div class="sci">' + e.w + '</div></div>';
   }).join('');
 
-  var saved = !!S.log[key()];
+  var inProgress = !!S.draft[key()];
   var btn = document.getElementById('save');
-  btn.textContent = saved ? 'Saved - tap to update' : 'Finish session';
-  btn.className = 'save' + (saved ? ' done' : '');
+  btn.textContent = inProgress ? 'Finish session' : 'Nothing logged yet';
+  btn.className = 'save' + (inProgress ? '' : ' idle');
 }
 
 function renderVolume(){
@@ -611,9 +617,26 @@ document.getElementById('exlist').addEventListener('click', function(e){
 
 document.getElementById('save').addEventListener('click', function(){
   var k = key(), draft = S.draft[k];
-  if(!draft){ alert('Log at least one set first.'); return; }
-  S.log[k] = { day:S.day, sets:draft };
+
+  /* only keep sets that were actually ticked off */
+  var clean = {}, n = 0;
+  Object.keys(draft || {}).forEach(function(name){
+    var done = (draft[name] || []).filter(function(st){
+      return st && st.done && st.w > 0 && st.r > 0;
+    });
+    if(done.length){ clean[name] = done; n += done.length; }
+  });
+  if(!n){ alert('Tick off at least one completed set first.'); return; }
+
+  /* allow more than one session on the same day */
+  var slot = k, i = 2;
+  while(S.log[slot]) slot = k + '#' + (i++);
+
+  S.log[slot] = { day:S.day, sets:clean, at:new Date().toISOString() };
+  delete S.draft[k];                 /* wipe the sheet for next time */
   save(); renderAll();
+  window.scrollTo({ top:0, behavior:'smooth' });
+  alert('Session saved - ' + n + ' sets. The sheet is clear for next time.');
 });
 
 document.getElementById('logbw').addEventListener('click', function(){
