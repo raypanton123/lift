@@ -235,9 +235,14 @@ nav button.on{background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d
 #rest .rnum{font-size:3.4rem;font-weight:300;font-variant-numeric:tabular-nums;
   letter-spacing:-.03em;color:var(--lime);line-height:1}
 #rest .rlab{font-size:.76rem;letter-spacing:.24em;color:var(--dim);margin-top:.6rem}
-#rest .rwhy{max-width:330px;text-align:center;font-size:.81rem;line-height:1.6;
-  color:var(--dim);margin:1.5rem 0 0}
-#rest .rwhy b{color:var(--txt)}
+#rest .rq{max-width:340px;margin:1.6rem 0 0;padding:0;text-align:center}
+#rest .rq p{margin:0;font-size:1.02rem;line-height:1.5;letter-spacing:-.01em;color:var(--txt);
+  font-weight:450}
+#rest .rq cite{display:block;margin-top:.5rem;font-style:normal;font-size:.7rem;
+  letter-spacing:.14em;color:var(--lime);text-transform:uppercase}
+#rest .rwhy{max-width:330px;text-align:center;font-size:.76rem;line-height:1.55;
+  color:#5f6c5f;margin:1.2rem 0 0}
+#rest .rwhy b{color:var(--dim)}
 #rest .rbtns{display:flex;gap:.5rem;margin-top:1.4rem}
 #rest .rbtns button{padding:.62rem 1.2rem;background:transparent;border:1px solid var(--line);
   color:var(--txt);border-radius:99px;font:inherit;font-size:.85rem;cursor:pointer}
@@ -402,8 +407,9 @@ nav button.on{background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d
       <div class="rlab" id="rtlab">REST</div>
     </div>
   </div>
-  <p class="rwhy">Rest properly. The next set only drives adaptation if you can hit it hard -
-     cut the rest and you just lose reps. <b>Chase progression, not the pump.</b></p>
+  <blockquote class="rq"><p id="rqtext"></p><cite id="rqwho"></cite></blockquote>
+  <p class="rwhy">Rest properly - the next set only counts if you can hit it hard.
+     <b>Chase progression, not the pump.</b></p>
   <div class="rbtns">
     <button id="rtpause">Pause</button>
     <button id="rtadd">+30s</button>
@@ -415,14 +421,14 @@ nav button.on{background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d
 /* ============================ PROGRAM ============================ */
 var PROGRAM = [
  { id:'lowerA', name:'Lower A', focus:'Quad', ex:[
-  {n:'Back Squat',          s:3, r:'5-8',   lo:5,  hi:8,  mg:['Quads','Glutes'],  bar:1, rest:180,
-   w:'Full depth. The bottom half is where the growth is.'},
-  {n:'Romanian Deadlift',   s:3, r:'8-10',  lo:8,  hi:10, mg:['Hamstrings'],      bar:1, rest:150,
-   w:'Hamstrings loaded long - the position that grows them.'},
-  {n:'Seated Leg Curl',     s:3, r:'10-12', lo:10, hi:12, mg:['Hamstrings'],      bar:0, rest:90,
+  {n:'Leg Press',           s:4, r:'6-10',  lo:6,  hi:10, mg:['Quads','Glutes'],  bar:0, rest:180,
+   w:'Main quad lift. Back supported, no spinal load, depth you control. Stop just short of the knee angle that hurts.'},
+  {n:'Romanian Deadlift',   s:3, r:'8-10',  lo:8,  hi:10, mg:['Hamstrings','Glutes'], bar:1, rest:150,
+   w:'A hip hinge - the knee barely bends, so it stays comfortable. Hamstrings loaded long.'},
+  {n:'Seated Leg Curl',     s:4, r:'10-12', lo:10, hi:12, mg:['Hamstrings'],      bar:0, rest:90,
    w:'Seated beats lying: +14% vs +9% over 12 weeks.'},
-  {n:'Leg Press',           s:3, r:'10-12', lo:10, hi:12, mg:['Quads'],           bar:0, rest:120,
-   w:'Quad volume with low systemic fatigue.'},
+  {n:'Leg Extension',       s:3, r:'12-15', lo:12, hi:15, mg:['Quads'],           bar:0, rest:75,
+   w:'Lighter and slower. Work only through the range that is pain free - strong quads protect the knee.'},
   {n:'Standing Calf Raise', s:4, r:'8-12',  lo:8,  hi:12, mg:['Calves'],          bar:0, rest:75,
    w:'Pause at the bottom. Calves respond to the stretch.'}
  ]},
@@ -443,14 +449,14 @@ var PROGRAM = [
    w:'About 40% more triceps growth than pushdowns.'}
  ]},
  { id:'lowerB', name:'Lower B', focus:'Posterior', ex:[
-  {n:'Hack Squat',          s:3, r:'8-10',  lo:8,  hi:10, mg:['Quads'],           bar:0, rest:150,
-   w:'Deep knee flexion under load, back supported.'},
   {n:'Hip Thrust',          s:3, r:'8-12',  lo:8,  hi:12, mg:['Glutes'],          bar:1, rest:120,
-   w:'Glutes at short length - the exception that works.'},
+   w:'Glutes at short length - the exception that works. No knee stress at all.'},
+  {n:'Single-Leg Leg Press',s:3, r:'10-12', lo:10, hi:12, mg:['Quads','Glutes'],  bar:0, rest:120,
+   w:'One leg at a time, so the right cannot hide behind the left. Lighter load, same stimulus.'},
   {n:'Seated Leg Curl',     s:3, r:'10-12', lo:10, hi:12, mg:['Hamstrings'],      bar:0, rest:90,
    w:'Second hamstring session. Frequency over heroics.'},
   {n:'Leg Extension',       s:3, r:'12-15', lo:12, hi:15, mg:['Quads'],           bar:0, rest:75,
-   w:'Isolates rectus femoris, which squats underload.'},
+   w:'Pain free range only. If it pinches, shorten the top half rather than loading through it.'},
   {n:'Seated Calf Raise',   s:4, r:'10-15', lo:10, hi:15, mg:['Calves'],          bar:0, rest:60,
    w:'Bent knee targets soleus. Standing misses it.'}
  ]},
@@ -1031,6 +1037,57 @@ function renderCal(){
   document.getElementById('cal').innerHTML=out;
 }
 
+/* ============================ QUOTES ============================ */
+/* from 00 Notes/(C) Training Quotes - Fitness Tracker Motivation.md
+   weighted to the sections that land mid-session: the last set, logging, identity */
+var QUOTES = [
+ ['When you say need to, it is a goal. When you say I am, it is an identity.','Bedros Keuilian'],
+ ['Weights do not care how you feel. A barbell does not respond to emotion. It responds to alignment, patience, and intention.','100 Days of Power'],
+ ['Your body will say no. Then you say: no, I will keep doing this. I said I would do this.','NABAR_V'],
+ ['Pain is focus. Pain is transformation. Pain is the price of becoming.','100 Days of Power'],
+ ['Pain is the signal that you are pushing past your current capacity. It is the moment where adaptation begins.','100 Days of Power'],
+ ['Every rep, every sprint, every climb was a vote for the man I was becoming.','100 Days of Power'],
+ ['If your mind drifts, the lift fails.','100 Days of Power'],
+ ['My ego has no control over me today. All decisions are mine. I decide who I am.','NABAR_V'],
+ ['Stimulus, adaptation, stimulus, adaptation. That is how you get stronger.','100 Days of Power'],
+ ['What stats we measure get improved. Anything that you measure gets improved.','Bedros Keuilian'],
+ ['Progress comes from showing up consistently, respecting the process, and focusing on execution rather than outcome.','100 Days of Power'],
+ ['Every workout becomes a vote for the future version of yourself.','100 Days of Power'],
+ ['Strength training is about building structure in the mind.','100 Days of Power'],
+ ['Discipline is a system. It is not a personality trait.','Bedros Keuilian'],
+ ['I do not negotiate with the inner critic.','Bedros Keuilian'],
+ ['Never miss twice.','Bedros Keuilian'],
+ ['3, 2, 1, go.','Bedros Keuilian'],
+ ['Every day that I did it, I got a little bit better. A tiny bit better each day.','NABAR_V'],
+ ['Losers think short-term comfort. Winners think long-term regret.','Bedros Keuilian'],
+ ['I will take the discipline of today to not have the regret of tomorrow.','Bedros Keuilian'],
+ ['How do you eat an elephant? One bite at a time.','Bedros Keuilian'],
+ ['Average is the enemy.','Bedros Keuilian'],
+ ['Every day you keep your word to yourself, you build an unshakable inner trust that no external validation can provide.','100 Days of Power'],
+ ['Patience is everything when it comes to conditioning the body.','100 Days of Power'],
+ ['Consistency matters more than duration.','100 Days of Power'],
+ ['You are building a new version of yourself. That version deserves better fuel than what you have been giving him.','100 Days of Power'],
+ ['If you want to build confidence, just be disciplined. Then your confidence skyrockets.','NABAR_V'],
+ ['No one should be embarrassed of any failure. What they should be embarrassed of is not trying their hardest.','NABAR_V'],
+ ['You play to win. You do not play to play.','NABAR_V'],
+ ['There is no such thing as a failure, there are only lessons.','NABAR_V'],
+ ['The question is not do you have willpower. The question is do you have a mission.','100 Days of Power'],
+ ['A man without a mission is a ship without a rudder.','100 Days of Power'],
+ ['Every no to distraction is a yes to something greater.','100 Days of Power'],
+ ['Purpose is the great organizer. The fuel does not change - the direction does.','100 Days of Power'],
+ ['Life stops happening to you and starts happening through you.','100 Days of Power'],
+ ['Make winning predictable. Time block. No guesswork.','Bedros Keuilian'],
+ ['One day becomes one week, one week becomes one month, one month becomes a year.','Bedros Keuilian']
+];
+var lastQ = -1;
+function showQuote(){
+  if(QUOTES.length < 2) return;
+  var i; do { i = Math.floor(Math.random()*QUOTES.length); } while(i === lastQ);
+  lastQ = i;
+  document.getElementById('rqtext').textContent = '"' + QUOTES[i][0] + '"';
+  document.getElementById('rqwho').textContent = QUOTES[i][1];
+}
+
 /* ============================ REST TIMER ============================ */
 var SEGS=64;
 var rt={ endAt:0, total:0, id:null, paused:false, held:0, lock:null, done:false };
@@ -1055,6 +1112,7 @@ function startRest(sec){
   document.getElementById('rest').classList.add('on');
   document.getElementById('rtpause').textContent='Pause';
   document.getElementById('rtlab').textContent='REST';
+  showQuote();
   requestLock(); clearInterval(rt.id); tickRest(); rt.id=setInterval(tickRest,250);
 }
 function tickRest(){
