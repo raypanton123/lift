@@ -1,6 +1,7 @@
-var CACHE = 'lift-v7';
+var CACHE = 'lift-v9';
 var ASSETS = ['./', './index.html', './manifest.json',
-              './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+              './icon-192.png', './icon-512.png', './apple-touch-icon.png',
+              './favicon-32.png', './favicon-64.png'];
 
 self.addEventListener('install', function(e){
   e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(ASSETS); })
