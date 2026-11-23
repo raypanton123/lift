@@ -56,31 +56,34 @@ body{margin:0;background:var(--bg);color:var(--txt);
 .wd.now em,.wd.now b{color:#0a0d0a}
 .wd.now i{background:#0a0d0a}
 
-/* ---------- hero image ---------- */
-.shot{position:relative;border-radius:22px;overflow:hidden;margin-bottom:1rem;
-  aspect-ratio:16/11;background:#141a14;border:1px solid var(--line)}
-.shot img{width:100%;height:100%;object-fit:cover;object-position:50% 22%;display:block}
-.shot .sc{position:absolute;inset:0;
-  background:linear-gradient(to top,rgba(5,8,5,.92) 6%,rgba(5,8,5,.25) 48%,rgba(5,8,5,.1))}
-.shot .st{position:absolute;left:1rem;right:1rem;bottom:.9rem}
-.shot .st em{font-style:normal;font-size:.68rem;letter-spacing:.14em;color:var(--lime)}
-.shot .st b{display:block;font-size:1.35rem;letter-spacing:-.02em;margin-top:.1rem}
-.shot .st i{display:block;font-style:normal;font-size:.74rem;color:#b9c4b6;margin-top:.15rem}
-.shot .pg{position:absolute;top:.7rem;right:.8rem;display:flex;gap:.22rem}
-.shot .pg s{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.35);
-  text-decoration:none}
-.shot .pg s.on{background:var(--lime)}
-.shot.empty{display:grid;place-items:center;aspect-ratio:16/7}
-.shot.empty p{color:var(--dim);font-size:.84rem;text-align:center;padding:1rem;margin:0}
-.shot .add{position:absolute;top:.65rem;left:.7rem;width:30px;height:30px;border-radius:50%;
-  border:none;background:rgba(5,8,5,.55);backdrop-filter:blur(8px);color:#fff;font-size:1.05rem;
-  line-height:1;cursor:pointer;display:grid;place-items:center;z-index:3;
-  -webkit-backdrop-filter:blur(8px)}
-.shot .add:active{background:rgba(5,8,5,.8)}
-.shot .del{position:absolute;top:.65rem;left:2.5rem;width:30px;height:30px;border-radius:50%;
-  border:none;background:rgba(5,8,5,.55);backdrop-filter:blur(8px);color:#fff;font-size:.95rem;
-  line-height:1;cursor:pointer;display:grid;place-items:center;z-index:3;
-  -webkit-backdrop-filter:blur(8px)}
+/* ---------- the why deck ---------- */
+.creed{position:relative;border-radius:22px;margin-bottom:1rem;overflow:hidden;
+  min-height:178px;display:flex;flex-direction:column;
+  background:
+    radial-gradient(120% 90% at 8% 0%,rgba(185,242,39,.10),transparent 60%),
+    linear-gradient(155deg,#1b231b,#0e130e);
+  border:1px solid var(--line);
+  touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:grab}
+.creed:active{cursor:grabbing}
+.creed .ct{flex:1;padding:1.05rem 1.15rem .55rem;
+  transition:transform .2s ease,opacity .2s ease}
+.creed.sw .ct{transition:none}
+.creed .ct em{display:block;font-style:normal;font-size:.63rem;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--lime)}
+.creed .ct p{margin:.5rem 0 0;font-size:1.06rem;line-height:1.42;letter-spacing:-.012em;
+  font-weight:500;color:var(--txt)}
+.creed .ct i{display:block;font-style:normal;font-size:.72rem;color:var(--dim);
+  margin-top:.55rem}
+.creed .cf{display:flex;align-items:center;gap:.6rem;padding:0 1.15rem .9rem}
+.creed .cf s{flex:1;height:3px;border-radius:2px;background:#2b352b;text-decoration:none;
+  overflow:hidden}
+.creed .cf s u{display:block;height:100%;background:var(--lime);border-radius:2px;
+  transition:width .2s ease}
+.creed .cf b{font-size:.66rem;color:var(--dim);font-weight:500;
+  font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.creed .cf button{border:none;background:none;color:var(--dim);font:inherit;font-size:.9rem;
+  padding:.1rem .25rem;cursor:pointer;line-height:1}
+.creed .cf button:active{color:var(--lime)}
 
 /* ---------- tiles ---------- */
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.6rem}
@@ -288,7 +291,19 @@ nav button.on{background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d
 
   <!-- ======================= HOME ======================= -->
   <section class="page on" id="p-home">
-    <div class="shot empty" id="shot"><p>Add a photo of where you are heading</p></div>
+    <div class="creed" id="creed">
+      <div class="ct" id="ct">
+        <em id="c-src"></em>
+        <p id="c-txt"></p>
+        <i id="c-tag"></i>
+      </div>
+      <div class="cf">
+        <button id="c-prev" aria-label="Previous">&#8249;</button>
+        <s><u id="c-bar" style="width:0%"></u></s>
+        <b id="c-num">1/1</b>
+        <button id="c-next" aria-label="Next">&#8250;</button>
+      </div>
+    </div>
 
     <div class="week" id="week"></div>
 
@@ -322,8 +337,6 @@ nav button.on{background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d
         <div class="go">&#9654;</div>
       </div>
     </div>
-
-    <input type="file" id="vfile" accept="image/*" multiple style="display:none">
 
     <div class="card">
       <div class="hh"><h2>February goal</h2></div>
@@ -673,7 +686,7 @@ function streak(){
 
 /* ============================ VISION PHOTOS ============================ */
 /* kept in IndexedDB - photos are far too big for localStorage */
-var IDB = null, VIS = [], visIdx = 0;
+var IDB = null, VIS = [];
 
 function openDB(){
   return new Promise(function(res,rej){
@@ -731,51 +744,123 @@ function addVision(files){
         rq.onsuccess = rq.onerror = function(){ if(--left === 0) res(); };
       });
     });
-  }).then(loadVision).then(renderVision);
+  }).then(loadVision);
 }
 
 function delVision(id){
   return new Promise(function(res){
     var rq = tx('readwrite').delete(id);
     rq.onsuccess = rq.onerror = res;
-  }).then(loadVision).then(renderVision);
+  }).then(loadVision);
 }
 
-function renderVision(){
-  var shot = document.getElementById('shot');
-  var nd = nextDay();
+/* photos are no longer shown on the home screen - the why deck took that slot.
+   the IndexedDB layer above is kept so old photos and old backups still restore. */
 
-  var addBtn = '<button class="add" id="vaddbtn">+</button>';
+/* ============================ THE WHY DECK ============================ */
+/* Short reasons, swipe or tap through. Sources:
+   R = the research note (Height, Strength & the Insecurity Trap)
+   K = Kasechev Fitness, notes on the short-guy videos
+   P = 100 Days of Power, Nabar
+   All wording below is condensed, not quoted. */
+var CREED = [
+  { s:'The research', t:'Strength accounts for about 70% of bodily attractiveness. Height accounts for a few percent.', g:'Sell study · R' },
+  { s:'The research', t:'5’7 is the normal bracket, not the short one. The line the data draws sits underneath you, not above you.', g:'68% of men · R' },
+  { s:'The research', t:'Fitness shows up in both facial and bodily attractiveness. One investment, two returns.', g:'R' },
+  { s:'The research', t:'Crossed off permanently: height, bone structure, frame width. Live and fully yours: strength, body composition, posture, sleep.', g:'R' },
+  { s:'The research', t:'Arnold won Olympia repeatedly and still thought he looked bad. The scoreboard is the problem, not your score.', g:'R' },
+  { s:'The research', t:'He’s tall. That’s fine. It has nothing to do with me, and I’m working on what’s mine.', g:'the durable version · R' },
+  { s:'The research', t:'Muscularity correlated with partners more than twice as strongly as height. Stronger men had more children. Taller men did not.', g:'Lidborg, 91 studies · R' },
+  { s:'Short frame', t:'A small frame reads bigger with less tissue. Your return per kilo gained is higher than a tall man’s.', g:'K' },
+  { s:'Short frame', t:'Width, not mass. Shoulders, back, tight waist. Bulk on a short frame reads blocky rather than impressive.', g:'K' },
+  { s:'Short frame', t:'Lean is how the muscle becomes legible. 10 to 14% all year, so the proportions stay visible.', g:'K' },
+  { s:'Short frame', t:'Shorter limbs mean shorter bar paths. More weight relative to your size, more tension through the muscle.', g:'K' },
+  { s:'Short frame', t:'Insoles and layered clothing change the photograph. Nothing underneath it.', g:'K' },
+  { s:'Short frame', t:'Fixating on the one thing you can’t control drains the five you can.', g:'K' },
+  { s:'The method', t:'Keep it boring. Change load and reps, not exercises. He ran single programs for six months to a year.', g:'K' },
+  { s:'The method', t:'Training does not make up for a poor diet. The plan only works with both halves in place.', g:'K' },
+  { s:'The method', t:'Stimulus, adaptation, stimulus, adaptation. Patience is the whole method. You cannot jump to the heaviest weights.', g:'P' },
+  { s:'The method', t:'The gym is one tool for your mental health, not the only thing keeping you level. Four sessions is the plan. A bad day doesn’t call for a fifth.', g:'K' },
+  { s:'Under the bar', t:'Weights don’t respond to how you feel. They respond to alignment, patience and intention.', g:'P' },
+  { s:'Under the bar', t:'Every rep demands presence. If the mind drifts, the lift fails. That is what the barbell teaches that nothing else does.', g:'P' },
+  { s:'Under the bar', t:'Pain is the signal you have passed your current capacity. That is where adaptation starts.', g:'P' },
+  { s:'Under the bar', t:'Retention builds pressure. Lifting gives it an outlet — force applied with control instead of chaos.', g:'P' },
+  { s:'The trap', t:'Certainty never comes from thinking. It comes from moving. You are waiting on a feeling only action can produce.', g:'P' },
+  { s:'The trap', t:'Simulating the workout feels productive. It is not.', g:'P' },
+  { s:'The trap', t:'Thinking without movement is stagnation. The mind ends up exhausted and the life unchanged.', g:'P' },
+  { s:'The trap', t:'Freedom is choosing your structure. Chaos is having none and calling it a life.', g:'P' },
+  { s:'The point', t:'A physique is the one asset money cannot buy. You still have to show up, eat, sleep and manage stress.', g:'K' },
+  { s:'The point', t:'Fourteen weeks of logged sessions is evidence you follow through. That is the part that carries into everything else.', g:'K' },
+  { s:'The point', t:'The 5’7 guy who lifts, eats well and never mentions his height is in a completely different position from the one quietly convinced it disqualifies him. Same body. Different signal.', g:'R' }
+];
 
-  if(!VIS.length){
-    shot.className = 'shot empty';
-    shot.innerHTML = addBtn + '<p>Add a photo of where you are heading</p>';
-  } else {
-    if(visIdx >= VIS.length) visIdx = 0;
-    shot.className = 'shot';
-    shot.innerHTML =
-      '<img src="' + VIS[visIdx].data + '" alt="">' +
-      '<div class="sc"></div>' + addBtn +
-      '<button class="del" id="vdelbtn" data-del="' + VIS[visIdx].id + '">&times;</button>' +
-      '<div class="pg">' + VIS.map(function(_,i){
-        return '<s class="' + (i===visIdx?'on':'') + '"></s>'; }).join('') + '</div>' +
-      '<div class="st"><em>28 FEBRUARY</em><b>Hey Ray</b>' +
-      '<i>' + nd.name + ' is next. ' + Object.keys(S.log).length + ' of ' + TOTAL +
-      ' sessions done.</i></div>';
-  }
+/* start somewhere different each day, then free to swipe */
+var cIdx = Math.floor(Date.now()/864e5) % CREED.length;
+
+function renderCreed(){
+  if(cIdx < 0) cIdx = CREED.length - 1;
+  if(cIdx >= CREED.length) cIdx = 0;
+  var c = CREED[cIdx];
+  document.getElementById('c-src').textContent = c.s;
+  document.getElementById('c-txt').textContent = c.t;
+  document.getElementById('c-tag').textContent = c.g;
+  document.getElementById('c-num').textContent = (cIdx+1) + '/' + CREED.length;
+  document.getElementById('c-bar').style.width =
+    Math.round((cIdx+1)/CREED.length*100) + '%';
 }
 
-document.getElementById('shot').addEventListener('click', function(e){
-  if(e.target.closest('#vaddbtn')){ document.getElementById('vfile').click(); return; }
-  var d = e.target.closest('[data-del]');
-  if(d){ delVision(parseInt(d.dataset.del,10)); return; }
-  if(!VIS.length){ document.getElementById('vfile').click(); return; }
-  visIdx = (visIdx+1) % VIS.length; renderVision();
-});
-document.getElementById('vfile').addEventListener('change', function(e){
-  if(e.target.files.length) addVision(e.target.files);
-  e.target.value = '';
-});
+/* slide the outgoing card away, bring the next one in */
+function creedGo(dir){
+  var el = document.getElementById('creed'), ct = document.getElementById('ct');
+  el.classList.remove('sw');
+  ct.style.transform = 'translateX(' + (dir>0?-28:28) + 'px)';
+  ct.style.opacity = '0';
+  setTimeout(function(){
+    cIdx += dir; renderCreed();
+    el.classList.add('sw');
+    ct.style.transform = 'translateX(' + (dir>0?22:-22) + 'px)';
+    void ct.offsetWidth;
+    el.classList.remove('sw');
+    ct.style.transform = 'translateX(0)';
+    ct.style.opacity = '1';
+  }, 190);
+}
+
+(function(){
+  var el = document.getElementById('creed'), ct = document.getElementById('ct');
+  var x0 = 0, y0 = 0, dx = 0, drag = false;
+
+  el.addEventListener('touchstart', function(e){
+    if(e.touches.length !== 1) return;
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+    dx = 0; drag = true; el.classList.add('sw');
+  }, { passive:true });
+
+  el.addEventListener('touchmove', function(e){
+    if(!drag) return;
+    dx = e.touches[0].clientX - x0;
+    /* a mostly-vertical move is a page scroll, not a swipe */
+    if(Math.abs(e.touches[0].clientY - y0) > Math.abs(dx)){ drag = false;
+      el.classList.remove('sw'); ct.style.transform = ''; return; }
+    ct.style.transform = 'translateX(' + (dx*.55) + 'px)';
+    ct.style.opacity = String(Math.max(.45, 1 - Math.abs(dx)/320));
+  }, { passive:true });
+
+  el.addEventListener('touchend', function(){
+    if(!drag) return;
+    drag = false; el.classList.remove('sw');
+    if(Math.abs(dx) > 42){ ct.style.transform = ''; ct.style.opacity = '1';
+      creedGo(dx < 0 ? 1 : -1); }
+    else { ct.style.transform = 'translateX(0)'; ct.style.opacity = '1'; }
+  });
+
+  /* tap anywhere advances; the arrows work on desktop too */
+  el.addEventListener('click', function(e){
+    if(e.target.closest('#c-prev')){ creedGo(-1); return; }
+    if(e.target.closest('#c-next')){ creedGo(1); return; }
+    creedGo(1);
+  });
+})();
 
 /* ============================ HOME ============================ */
 function renderHome(){
@@ -890,7 +975,7 @@ function renderHome(){
   bb.className='save'+(stale?' warn':'');
   bb.textContent = stale?'Back up now':'Back up again';
 
-  if(VIS.length) renderVision();
+  renderCreed();
   document.getElementById('goalnote').innerHTML= goalLine() +
     'Target is <b>0.75% of starting bodyweight per month</b> - the intermediate band, and the '+
     'realistic ceiling for 14 weeks. Needs a small calorie surplus and 1.6-2.2 g protein per kg. '+
@@ -1394,7 +1479,7 @@ document.getElementById('importfile').addEventListener('change', function(e){
           fresh.forEach(function(p){
             var rq = st.add({ data:p.data, at:p.at || Date.now() });
             rq.onsuccess = rq.onerror = function(){
-              if(--left === 0) loadVision().then(renderVision);
+              if(--left === 0) loadVision();
             };
           });
         }
@@ -1470,7 +1555,7 @@ function renderAll(){
   renderPick(); renderChart(); renderCal(); renderReport(); renderClock();
 }
 renderAll();
-openDB().then(loadVision).then(renderVision).catch(function(){});
+openDB().then(loadVision).catch(function(){});
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', function(){
