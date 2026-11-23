@@ -235,6 +235,20 @@ nav button svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width
 nav button.on{background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d0a;font-weight:650}
 
 /* ---------- rest timer ---------- */
+/* ---------- session complete ---------- */
+#done{position:fixed;inset:0;z-index:80;background:var(--bg);display:none;overflow-y:auto;
+  padding:calc(env(safe-area-inset-top) + 1.2rem) 1.1rem calc(env(safe-area-inset-bottom) + 1.4rem)}
+#done.on{display:block}
+#done .k{color:var(--lime);font-size:.78rem;font-weight:750;letter-spacing:.14em;text-transform:uppercase;margin:0}
+#done h2{font-size:1.75rem;letter-spacing:-.03em;margin:.2rem 0 1rem;line-height:1.1}
+#done .big{background:linear-gradient(160deg,#16210f,#0f160f);border:1px solid #2a3a1a;border-radius:16px;
+  padding:1rem;margin:0 0 .9rem;font-size:.92rem;line-height:1.6}
+#done .big b{color:var(--lime)}
+#done .lift{border-top:1px solid var(--line);padding:.7rem 0}
+#done .lift .top{display:flex;justify-content:space-between;gap:.6rem;font-weight:650}
+#done .lift .d{font-size:.8rem;color:var(--dim);margin-top:.2rem;line-height:1.45}
+#done .lift .n{font-size:.8rem;margin-top:.25rem}
+#done .why{font-size:.88rem;line-height:1.65;color:var(--txt);margin:1rem 0}
 #rest{position:fixed;inset:0;background:#0a0d0a;display:none;z-index:70;
   flex-direction:column;align-items:center;justify-content:center;
   padding:1.5rem 1.2rem calc(1.5rem + env(safe-area-inset-bottom))}
@@ -411,6 +425,7 @@ nav button.on{background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d
     Stats</button>
 </div></nav>
 
+<div id="done"></div>
 <div id="rest">
   <div class="rwrap">
     <svg id="rring" viewBox="0 0 300 300"></svg>
@@ -963,6 +978,79 @@ function renderVolume(){
   }).join('');
 }
 
+/*
+ * The end-of-workout summary: what you did, what moved compared with last
+ * time, and why a small step still matters.
+ *
+ * Numbers come from assess(), the same comparison the Stats report uses, so
+ * the two never disagree. The compounding line uses 1% a session rather than
+ * today's figure: one great day extrapolated over three months reads as a
+ * promise the body won't keep.
+ */
+function showSummary(slot, onClose){
+  var entry=S.log[slot], d=dayById(entry.day), lifts=[], ton=0, sets=0, pcts=[], ups=0, prs=0, downs=0, firsts=0;
+  d.ex.forEach(function(e){
+    if(!setsOf(entry,e.n).length) return;
+    var a=assess(e.n,e,slot); ton+=a.tonnage; sets+=a.sets; lifts.push(a);
+    var ks=keysFor(e.n), idx=ks.indexOf(slot);
+    if(idx>0){
+      var p=bestOf(setsOf(S.log[ks[idx-1]],e.n)), n=bestOf(setsOf(entry,e.n));
+      pcts.push((e1rm(n.w,n.r)-e1rm(p.w,p.r))/e1rm(p.w,p.r)*100);
+    } else firsts++;
+    if(a.cls==='v-pr'){ prs++; ups++; } else if(a.cls==='v-up') ups++; else if(a.cls==='v-down') downs++;
+  });
+
+  // Total load against the last session of this same day.
+  var same=Object.keys(S.log).filter(function(k){ return S.log[k].day===entry.day && k<slot; }).sort();
+  var loadLine='';
+  if(same.length){
+    var prevTon=0; d.ex.forEach(function(e){ prevTon+=tonnage(setsOf(S.log[same[same.length-1]],e.n)); });
+    if(prevTon>0){
+      var dl=ton-prevTon, dp=dl/prevTon*100;
+      loadLine=' That is <b>'+(dl>=0?'+':'')+Math.round(dl).toLocaleString()+' kg</b> ('+(dp>=0?'+':'')+dp.toFixed(1)+
+        '%) compared with your last '+d.name+'.';
+    }
+  }
+
+  var avg=pcts.length?pcts.reduce(function(a,b){ return a+b; },0)/pcts.length:0;
+  var head;
+  if(!pcts.length) head='<b>Baseline set.</b> Every number you logged today is the line the next '+d.name+
+    ' gets measured against.';
+  else if(ups && !downs) head='<b>'+ups+' of '+pcts.length+' lifts moved up'+(prs?', with '+prs+' personal best'+(prs>1?'s':''):'')+
+    '.</b> On average you were <b>'+(avg>=0?'+':'')+avg.toFixed(1)+'% stronger</b> than last time.';
+  else if(avg>=0) head='<b>'+ups+' up, '+downs+' down</b>, averaging <b>'+(avg>=0?'+':'')+avg.toFixed(1)+
+    '%</b> on last time. A net step forward.';
+  else head='<b>A lighter day</b> ('+avg.toFixed(1)+'% on last time). That happens. Sleep, food and stress '+
+    'show up on the bar; the trend over weeks is what counts.';
+
+  // What 1% a session becomes by the end of the plan (each day comes round once a week).
+  var weeksLeft=Math.max(0,Math.round((GOAL_END-Date.now())/(7*24*60*60*1000)));
+  var compound=(Math.pow(1.01,weeksLeft)-1)*100;
+  var why='<b>These small gains are the whole game.</b> Nobody adds 20 kg in a session. You add a rep here, '+
+    '2.5 kg there, and it compounds: <b>1% stronger each time you train a lift</b>'+
+    (weeksLeft>=2?' becomes about <b>'+Math.round(compound)+'% stronger by '+
+      GOAL_END.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+'</b>':' adds up faster than it feels')+
+    '. The sessions that feel ordinary are the ones that build the result.';
+
+  var mins=entry.mins?fmtMins(entry.mins):null;
+  var el=document.getElementById('done');
+  el.innerHTML='<p class="k">Session complete</p><h2>'+d.name+'</h2>'+
+    '<div class="rstats">'+
+      '<div class="rstat"><div class="n">'+(mins||'-')+'</div><div class="l">Time</div></div>'+
+      '<div class="rstat"><div class="n">'+Math.round(ton).toLocaleString()+' kg</div><div class="l">Total load</div></div>'+
+      '<div class="rstat"><div class="n">'+sets+'</div><div class="l">Sets</div></div>'+
+    '</div>'+
+    '<div class="big">'+head+loadLine+'</div>'+
+    lifts.map(function(a){
+      return '<div class="lift"><div class="top"><span>'+a.name+'</span><span class="rexv '+a.cls+'">'+a.verdict+'</span></div>'+
+        '<div class="d">'+a.why+'</div><div class="n">Next time: '+a.next+'</div></div>';
+    }).join('')+
+    '<p class="why">'+why+'</p>'+
+    '<button class="save" id="donebtn">Done</button>';
+  el.classList.add('on'); el.scrollTop=0;
+  document.getElementById('donebtn').onclick=function(){ el.classList.remove('on'); el.innerHTML=''; if(onClose) onClose(); };
+}
+
 /* How long this session took, against your usual. */
 function timeLine(entry){
   if(!entry.mins) return '';
@@ -1264,13 +1352,16 @@ document.getElementById('save').addEventListener('click', function(){
   }
   delete S.draft[k]; save(); renderAll(); go('stats');
   var done=Object.keys(S.log).length;
-  if(done-(S.backupAt||0) >= 3){
-    setTimeout(function(){
-      if(confirm('You have logged '+(done-(S.backupAt||0))+' sessions since your last backup.\n\n'+
-                 'Save a backup file now? It takes one tap and protects everything.')) doExport();
-      else { S.backupAt = done - 2; save(); renderHome(); }
-    }, 700);
-  }
+  // The backup prompt waits for the summary to close, so the two never stack.
+  showSummary(slot, function(){
+    if(done-(S.backupAt||0) >= 3){
+      setTimeout(function(){
+        if(confirm('You have logged '+(done-(S.backupAt||0))+' sessions since your last backup.\n\n'+
+                   'Save a backup file now? It takes one tap and protects everything.')) doExport();
+        else { S.backupAt = done - 2; save(); renderHome(); }
+      }, 300);
+    }
+  });
 });
 document.getElementById('logbw').addEventListener('click', function(){
   var v=parseFloat(document.getElementById('bw').value); if(!v) return;
