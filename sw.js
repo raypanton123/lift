@@ -1,4 +1,4 @@
-var CACHE = 'lift-v14';
+var CACHE = 'lift-v18';
 var ASSETS = ['./', './index.html', './manifest.json',
               './icon-192.png', './icon-512.png', './apple-touch-icon.png',
               './favicon-32.png', './favicon-64.png'];

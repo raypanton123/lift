@@ -124,6 +124,7 @@ svg.gauge{width:100%;height:62px;margin-top:.3rem;display:block}
 .days button{padding:.6rem .25rem;background:var(--card);color:var(--txt);
   border:1px solid var(--line);border-radius:13px;cursor:pointer;font:inherit;font-size:.82rem}
 .days button small{display:block;color:var(--dim);font-size:.63rem;margin-top:.06rem}
+.days button small.est{font-size:.58rem;opacity:.8;margin-top:.02rem}
 .days button.on{background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d0a;
   border-color:var(--lime)}
 .days button.on small{color:#1d3305}
@@ -156,6 +157,7 @@ table.sets input::-webkit-outer-spin-button,table.sets input::-webkit-inner-spin
 table.sets input[type=number]{-moz-appearance:textfield}
 .tick{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:transparent;
   color:var(--dim);cursor:pointer;font-size:.9rem;line-height:1;padding:0}
+input.miss{border-color:#ff6b5a !important;box-shadow:0 0 0 2px rgba(255,107,90,.35)}
 .tick.on{background:var(--lime);border-color:var(--lime);color:#0a0d0a;font-weight:800}
 tr.done input{opacity:.45}
 .sci{font-size:.72rem;color:var(--dim);margin-top:.55rem;padding-left:.6rem;
@@ -567,6 +569,14 @@ function plateString(total){
   }
   return side>0.01 ? 'not loadable exactly' : out.join(', ')+' per side';
 }
+/* Planned session length in minutes: about 40 s per working set, the
+   programmed rest between sets (none after an exercise's last set), 90 s to
+   move and set up between exercises, and 5 min to warm up. Rounded to 5. */
+function sessionMins(d){
+  var s=d.ex.reduce(function(a,e){ return a+e.s*40+(e.s-1)*e.rest; },0)+
+        (d.ex.length-1)*90+300;
+  return Math.round(s/300)*5;
+}
 function step(w){ return w<12?1:(w<45?2.5:5); }
 function fmtK(n){ return n>=1000 ? (n/1000).toFixed(1)+'t' : Math.round(n)+' kg'; }
 
@@ -601,6 +611,16 @@ function assess(name, meta, thisKey){
   var atTop=now.filter(function(s){ return s.w>=topW && s.r>=meta.hi; }).length;
   var minRep=99; now.forEach(function(s){ if(s.w>=topW) minRep=Math.min(minRep,s.r); });
 
+  /* Last session at this lift: its top weight and the worst set at that weight. */
+  var prevTop=0, prevMin=99;
+  prev.forEach(function(s){ prevTop=Math.max(prevTop,s.w); });
+  prev.forEach(function(s){ if(s.w>=prevTop) prevMin=Math.min(prevMin,s.r); });
+  /* Falling below the range only means the weight is too heavy if the weight is
+     new (first time, or changed since last session) or it happened last time
+     too. A one-off at a weight you have been handling is an off day. */
+  var belowRange = minRep<meta.lo;
+  var realLimit  = belowRange && (!prev.length || topW!==prevTop || prevMin<meta.lo);
+
   var sliding=false;
   if(idx>=2){
     var e2=bestOf(setsOf(S.log[ks[idx-2]],name));
@@ -611,6 +631,24 @@ function assess(name, meta, thisKey){
     out.flag='Two sessions down in a row. That is fatigue or food, not the program.';
   } else if(working && atTop>=working){
     out.next='Add weight: '+(topW+step(topW))+' kg x '+meta.lo+' reps, all sets.';
+  } else if(belowRange && !realLimit){
+    var again=Math.min(meta.hi,Math.max(meta.lo,prevMin+1));
+    out.next='Off day: stay at '+topW+' kg and aim for '+again+' reps on every set again.';
+    if(!out.flag) out.flag='One set fell to '+minRep+' reps, below the '+meta.r+
+      ' range. Once at a weight you have been handling is an off day, not a reason to go lighter.';
+  } else if(realLimit){
+    /* A set at the top weight fell below the rep range, so that weight is at
+       your limit, not 2 reps short of it. Adding one rep would still leave the
+       target under the range. Instead, estimate a weight you can take to the
+       bottom of the range with 2 reps left (lo+2 on the 1RM estimate), round
+       it down to a loadable step, and restart double progression from there. */
+    var topBest=bestOf(now.filter(function(s){ return s.w>=topW; }));
+    var target=e1rm(topBest.w,topBest.r)/(1+(meta.lo+2)/30), inc=step(target);
+    var dropW=Math.max(inc, Math.min(topW-inc, Math.floor(target/inc)*inc));
+    out.next='Drop the weight: '+dropW+' kg x '+meta.lo+' reps, all sets. '+
+             'Build to '+meta.hi+' before going back up.';
+    if(!out.flag) out.flag=minRep+' reps at '+topW+' kg is below the '+meta.r+
+      ' range. That weight is at your limit, so the next one starts lighter.';
   } else if(minRep<99){
     out.next='Same weight: '+topW+' kg x '+Math.min(meta.hi,minRep+1)+' reps on every set.';
   } else {
@@ -985,9 +1023,8 @@ function renderHome(){
   var nd=nextDay();
   document.getElementById('l-focus').textContent=nd.focus.toUpperCase()+' FOCUS';
   document.getElementById('l-name').textContent=nd.name;
-  var mins=nd.ex.reduce(function(a,e){ return a+e.s*(e.rest+40); },0)/60;
   document.getElementById('l-meta').textContent=
-    Math.round(mins)+' mins  .  '+nd.ex.length+' exercises';
+    '~'+sessionMins(nd)+' mins  .  '+nd.ex.length+' exercises';
 
   /* goal bars */
   var done=Object.keys(S.log).length;
@@ -1031,7 +1068,8 @@ function renderHome(){
 function renderDays(){
   document.getElementById('days').innerHTML=PROGRAM.map(function(d){
     return '<button data-d="'+d.id+'" class="'+(S.day===d.id?'on':'')+'">'+
-           d.name+'<small>'+d.focus+'</small></button>'; }).join('');
+           d.name+'<small>'+d.focus+'</small><small class="est">~'+sessionMins(d)+
+           ' min</small></button>'; }).join('');
   var d=dayById(S.day);
   document.getElementById('w-title').innerHTML=d.name.toUpperCase().replace(' ','<br><span>')+'</span>';
 }
@@ -1459,7 +1497,24 @@ document.getElementById('exlist').addEventListener('click', function(e){
   var b=e.target.closest('.tick'); if(!b) return;
   var k=key(), name=b.dataset.tick, i=b.dataset.i;
   S.draft[k]=S.draft[k]||{}; S.draft[k][name]=S.draft[k][name]||[];
-  var slot=S.draft[k][name][i]||{}; slot.done=!slot.done;
+  var slot=S.draft[k][name][i]||{};
+  if(!slot.done){
+    /* An empty box shows last session's number as a grey hint. Ticking means
+       "done as shown", so take the hint as the value. If a box has no hint
+       either, there is nothing to log: point at it instead of ticking. */
+    var row=b.closest('tr'), miss=[];
+    ['w','r'].forEach(function(f){
+      if(slot[f]>0) return;
+      var inp=row.querySelector('input[data-f="'+f+'"]'), hint=parseFloat(inp.placeholder);
+      if(hint>0) slot[f]=hint; else miss.push(inp);
+    });
+    if(miss.length){
+      miss.forEach(function(inp){ inp.classList.add('miss');
+        setTimeout(function(){ inp.classList.remove('miss'); },1600); });
+      miss[0].focus(); return;
+    }
+  }
+  slot.done=!slot.done;
   S.draft[k][name][i]=slot; save();
   if(slot.done && slot.w>0 && slot.r>0) startRest(parseInt(b.dataset.rest,10));
   renderEx(); renderVolume(); renderHome();
