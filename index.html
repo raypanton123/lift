@@ -159,6 +159,17 @@ tr.done input{opacity:.45}
   font-weight:750;cursor:pointer;font-size:.95rem;
   background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d0a}
 .save.idle{background:#1c251c;color:var(--dim)}
+
+/* ---------- session clock ---------- */
+.sclock{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:.5rem;
+  margin:0 -.1rem .4rem;padding:.55rem 0;background:var(--bg)}
+.sclock .save{margin-top:0;flex:1}
+.sclock .run{flex:1;display:flex;align-items:baseline;justify-content:space-between;
+  padding:.75rem .95rem;border-radius:14px;background:var(--card);border:1px solid var(--line)}
+.sclock .run b{font-size:1.35rem;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:var(--lime)}
+.sclock .run span{font-size:.78rem;color:var(--dim)}
+.sclock .x{padding:.75rem .8rem;border-radius:14px;border:1px solid var(--line);
+  background:transparent;color:var(--dim);font:inherit;font-size:.8rem;cursor:pointer}
 .save.warn{background:linear-gradient(160deg,#fbbf24,#f59e0b);color:#2a1c00}
 .hh em.warn{color:var(--warn)}
 
@@ -323,6 +334,7 @@ nav button.on{background:linear-gradient(160deg,var(--lime),#86d41a);color:#0a0d
 
   <!-- ======================= WORKOUT ======================= -->
   <section class="page" id="p-work">
+    <div class="sclock" id="sclock"></div>
     <p class="hey">Today</p>
     <h1 class="hero" id="w-title">TRAIN</h1>
     <div class="days" id="days"></div>
@@ -951,13 +963,22 @@ function renderVolume(){
   }).join('');
 }
 
+/* How long this session took, against your usual. */
+function timeLine(entry){
+  if(!entry.mins) return '';
+  var timed=Object.keys(S.log).map(function(k){ return S.log[k].mins; }).filter(Boolean);
+  var avg=timed.length>1 ? Math.round(timed.reduce(function(a,b){ return a+b; },0)/timed.length) : 0;
+  return '<p class="rsum" style="margin:0 0 .9rem">Session time: <b>'+fmtMins(entry.mins)+'</b>'+
+    (avg?' . your average is '+fmtMins(avg)+' over '+timed.length+' timed sessions':'')+'.</p>';
+}
 function renderReport(){
   var ks=Object.keys(S.log).sort();
   if(!ks.length){ document.getElementById('reportcard').style.display='none'; return; }
   document.getElementById('reportcard').style.display='';
   var k=ks[ks.length-1], entry=S.log[k], d=dayById(entry.day);
   document.getElementById('repwhen').textContent=d.name+', '+
-    new Date(k.slice(0,10)).toLocaleDateString(undefined,{day:'numeric',month:'short'});
+    new Date(k.slice(0,10)).toLocaleDateString(undefined,{day:'numeric',month:'short'})+
+    (entry.mins?' . '+fmtMins(entry.mins):'');
 
   var rows=[], ton=0, sets=0, ups=0, downs=0, prs=0;
   d.ex.forEach(function(e){
@@ -996,7 +1017,7 @@ function renderReport(){
       '<div class="l">Total load</div></div>'+
       '<div class="rstat"><div class="n">'+sets+'</div><div class="l">Hard sets</div></div>'+
       '<div class="rstat"><div class="n">'+total+'/'+TOTAL+'</div><div class="l">Sessions</div></div>'+
-    '</div><p class="rsum">'+line+' '+volLine+' You are at <b>'+adh+'%</b> of the sessions '+
+    '</div>'+timeLine(entry)+'<p class="rsum">'+line+' '+volLine+' You are at <b>'+adh+'%</b> of the sessions '+
     'you should have done by now.</p>'+rows.join('');
 }
 
@@ -1234,6 +1255,13 @@ document.getElementById('save').addEventListener('click', function(){
   if(!n){ alert('Tick off at least one completed set first.'); return; }
   var slot=k, i=2; while(S.log[slot]) slot=k+'#'+(i++);
   S.log[slot]={ day:S.day, sets:clean, at:new Date().toISOString() };
+  if(S.sessionStart){
+    var mins=Math.max(1,Math.round((Date.now()-S.sessionStart)/60000));
+    // A clock left running overnight would wreck the average, so check first.
+    if(mins<=240 || confirm('The session clock says '+fmtMins(mins)+'. Save that as the session time?'))
+      S.log[slot].mins=mins;
+    delete S.sessionStart;
+  }
   delete S.draft[k]; save(); renderAll(); go('stats');
   var done=Object.keys(S.log).length;
   if(done-(S.backupAt||0) >= 3){
@@ -1308,9 +1336,47 @@ document.getElementById('reset').addEventListener('click', function(){
 });
 
 /* ============================ BOOT ============================ */
+/* ============================ SESSION CLOCK ============================ */
+/*
+ * Start session -> a running clock at the top of the workout page; Finish
+ * session saves how long it took with the session.
+ *
+ * The start time lives in S, so it survives the phone locking or iOS closing
+ * the app mid-workout: the clock just carries on from when you pressed start.
+ */
+function fmtDur(ms){
+  var t=Math.max(0,Math.floor(ms/1000)), h=Math.floor(t/3600), m=Math.floor(t%3600/60), sec=t%60;
+  return (h?h+':'+('0'+m).slice(-2):m)+':'+('0'+sec).slice(-2);
+}
+function fmtMins(mins){
+  return mins>=60 ? Math.floor(mins/60)+' h '+('0'+(mins%60)).slice(-2)+' min' : mins+' min';
+}
+var sclockTimer=null;
+function renderClock(){
+  var el=document.getElementById('sclock');
+  clearInterval(sclockTimer); sclockTimer=null;
+  if(!S.sessionStart){
+    el.innerHTML='<button class="save" id="sstart">Start session</button>';
+    return;
+  }
+  el.innerHTML='<div class="run"><b id="selapsed">'+fmtDur(Date.now()-S.sessionStart)+'</b>'+
+    '<span>started '+new Date(S.sessionStart).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+
+    '</span></div><button class="x" id="sstop">Reset</button>';
+  sclockTimer=setInterval(function(){
+    var e=document.getElementById('selapsed');
+    if(e) e.textContent=fmtDur(Date.now()-S.sessionStart);
+  },1000);
+}
+document.getElementById('sclock').addEventListener('click', function(e){
+  if(e.target.id==='sstart'){ S.sessionStart=Date.now(); save(); renderClock(); }
+  if(e.target.id==='sstop' && confirm('Reset the session clock? Your sets stay as they are.')){
+    delete S.sessionStart; save(); renderClock();
+  }
+});
+
 function renderAll(){
   renderHome(); renderDays(); renderEx(); renderVolume();
-  renderPick(); renderChart(); renderCal(); renderReport();
+  renderPick(); renderChart(); renderCal(); renderReport(); renderClock();
 }
 renderAll();
 openDB().then(loadVision).then(renderVision).catch(function(){});
