@@ -599,6 +599,31 @@ function weekCounts(){
   });
   return c;
 }
+/*
+ * The February goal weight, as a number to aim at rather than only a gain.
+ *
+ * Starting weight plus the same 0.75%-a-month target the gauge uses, landing on
+ * the plan's last day (START + 14 weeks = Sat 28 Feb). The pace line says where
+ * a steady gain would put you today, from an average of the last three
+ * weigh-ins so one salty dinner doesn't read as falling behind.
+ */
+var GOAL_END = new Date(START.getTime() + 14*7*24*60*60*1000);
+function goalLine(){
+  if(!S.bw.length) return '<b>Log your weight to set your February goal weight.</b><br>';
+  var start=S.bw[0].kg, target=+(start*0.0075*3.2).toFixed(1); if(target<1.5) target=1.5;
+  var goal=start+target;
+  var when=GOAL_END.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'});
+  var line='Goal weight: <b>'+goal.toFixed(1)+' kg by '+when+'</b>';
+  if(S.bw.length>=2){
+    var last=S.bw.slice(-3), avg=last.reduce(function(a,b){ return a+b.kg; },0)/last.length;
+    var span=GOAL_END-new Date(S.bw[0].d), gone=Date.now()-new Date(S.bw[0].d);
+    var frac=Math.max(0,Math.min(1,gone/span)), pace=start+target*frac, diff=avg-pace;
+    line+=' . on pace you\'d be about '+pace.toFixed(1)+' kg now; you\'re averaging '+avg.toFixed(1)+' kg ('+
+      (Math.abs(diff)<0.3?'right on track':diff>0?(diff.toFixed(1)+' kg ahead - ease the surplus a little'):
+      (Math.abs(diff).toFixed(1)+' kg behind - add a snack a day'))+')';
+  }
+  return line+'.<br>';
+}
 function weeksElapsed(){ return Math.max(0,(Date.now()-START.getTime())/(1000*60*60*24*7)); }
 function nextDay(){
   var ks=Object.keys(S.log).sort();
@@ -839,7 +864,7 @@ function renderHome(){
   bb.textContent = stale?'Back up now':'Back up again';
 
   if(VIS.length) renderVision();
-  document.getElementById('goalnote').innerHTML=
+  document.getElementById('goalnote').innerHTML= goalLine() +
     'Target is <b>0.75% of starting bodyweight per month</b> - the intermediate band, and the '+
     'realistic ceiling for 14 weeks. Needs a small calorie surplus and 1.6-2.2 g protein per kg. '+
     '<b>Weigh in weekly, same morning, same conditions.</b>';
