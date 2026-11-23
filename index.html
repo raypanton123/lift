@@ -68,8 +68,10 @@ body{margin:0;background:var(--bg);color:var(--txt);
 .creed .ct{flex:1;padding:1.05rem 1.15rem .55rem;
   transition:transform .2s ease,opacity .2s ease}
 .creed.sw .ct{transition:none}
-.creed .ct em{display:block;font-style:normal;font-size:.63rem;letter-spacing:.15em;
-  text-transform:uppercase;color:var(--lime)}
+.creed .ct em{display:inline-block;font-style:normal;font-size:.63rem;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--lime);cursor:pointer;
+  border-bottom:1px dotted rgba(185,242,39,.45);padding-bottom:1px}
+.creed .ct em:active{color:#fff;border-bottom-color:rgba(255,255,255,.5)}
 .creed .ct p{margin:.5rem 0 0;font-size:1.06rem;line-height:1.42;letter-spacing:-.012em;
   font-weight:500;color:var(--txt)}
 .creed .ct i{display:block;font-style:normal;font-size:.72rem;color:var(--dim);
@@ -771,6 +773,19 @@ var CREED = [
   { s:'The research', t:'Arnold won Olympia repeatedly and still thought he looked bad. The scoreboard is the problem, not your score.', g:'R' },
   { s:'The research', t:'He’s tall. That’s fine. It has nothing to do with me, and I’m working on what’s mine.', g:'the durable version · R' },
   { s:'The research', t:'Muscularity correlated with partners more than twice as strongly as height. Stronger men had more children. Taller men did not.', g:'Lidborg, 91 studies · R' },
+
+  { s:'Not a wall', t:'Every physical trait combined explained 18% of who got a second date. The other 82% was everything else.', g:'R' },
+  { s:'Not a wall', t:'11,000 speed daters. Women said yes to 32% of men who met their stated height minimum and 25% of men who didn’t. A 7% edge, not a wall.', g:'R' },
+  { s:'Not a wall', t:'Of the physical factors that mattered, the order was face, then body, then height. Height came last.', g:'R' },
+  { s:'Not a wall', t:'What people say they want isn’t what they pick. Nobody is filtering for a number they’ve rarely stood next to.', g:'R' },
+  { s:'Not a wall', t:'Romantic satisfaction was 55% for men 5’6 and under, and 66% for men 5’7 and up. You are in the second group.', g:'R' },
+  { s:'Not a wall', t:'Demetrious Johnson is 5’3 and built superbly. Married thirteen years, three kids. Everything else was simply overwhelming.', g:'R' },
+  { s:'Not a wall', t:'Moderately attractive is already enough for a good life with someone great. The gate is lower than you keep assuming.', g:'R' },
+  { s:'Not a wall', t:'Being underestimated means nobody is watching over your shoulder. You get to build quietly.', g:'K' },
+  { s:'Not a wall', t:'Nothing was handed to you, so you had to build something real instead. That is the whole advantage.', g:'K' },
+  { s:'Not a wall', t:'A strong short man surprises people in a way a strong tall man doesn’t. It reads as someone who does not fold.', g:'K' },
+  { s:'Not a wall', t:'Height is one thing you cannot control. Fitness, money, skill, how you speak, how you present — all of it is yours.', g:'K' },
+  { s:'Not a wall', t:'Surgery fixes the measurement and leaves the insecurity entirely intact.', g:'K' },
   { s:'Short frame', t:'A small frame reads bigger with less tissue. Your return per kilo gained is higher than a tall man’s.', g:'K' },
   { s:'Short frame', t:'Width, not mass. Shoulders, back, tight waist. Bulk on a short frame reads blocky rather than impressive.', g:'K' },
   { s:'Short frame', t:'Lean is how the muscle becomes legible. 10 to 14% all year, so the proportions stay visible.', g:'K' },
@@ -785,6 +800,24 @@ var CREED = [
   { s:'Under the bar', t:'Every rep demands presence. If the mind drifts, the lift fails. That is what the barbell teaches that nothing else does.', g:'P' },
   { s:'Under the bar', t:'Pain is the signal you have passed your current capacity. That is where adaptation starts.', g:'P' },
   { s:'Under the bar', t:'Retention builds pressure. Lifting gives it an outlet — force applied with control instead of chaos.', g:'P' },
+  { s:'Under the bar', t:'No music, no mirror, no phone. Just you and the bar.', g:'P' },
+  { s:'Under the bar', t:'The urge to quit shows up mid-session. Moving through it is the training.', g:'P' },
+
+  { s:'Discipline', t:'The men who fail are rarely the ones short on discipline. They are the ones who spend two weeks preparing to begin.', g:'P' },
+  { s:'Discipline', t:'You don’t need to be ready. You need to start.', g:'P' },
+  { s:'Discipline', t:'Motivation got you here yesterday. Discipline is what gets you here today.', g:'P' },
+  { s:'Discipline', t:'Be consistent the way a man is, not the way a machine is. Show up, have a bad day, come back anyway.', g:'P' },
+  { s:'Discipline', t:'Don’t try to optimise a practice you haven’t done yet.', g:'P' },
+  { s:'Discipline', t:'Talent is overrated. Consistency is what changes lives.', g:'P' },
+  { s:'Discipline', t:'This is what discipline looks like once the excitement fades. Not day-one fire. The quiet decision to keep going.', g:'P' },
+  { s:'Discipline', t:'You can be uncomfortable and still do the work. You can want to quit and choose not to. That is the skill you’re building.', g:'P' },
+  { s:'Discipline', t:'Discipline becomes identity when you do it consistently enough that it stops being a choice.', g:'P' },
+  { s:'Discipline', t:'The beginning has momentum. The end has urgency. The middle is where men coast — and the middle is where the work happens.', g:'P' },
+  { s:'Discipline', t:'Boredom is the test. Pass it.', g:'P' },
+  { s:'Discipline', t:'Discomfort is the price of growth.', g:'P' },
+  { s:'Discipline', t:'Never be afraid to take messy action.', g:'P' },
+  { s:'Discipline', t:'The state where effort feels like movement instead of grinding arrives after weeks of showing up. It is built through action, not preparation.', g:'P' },
+  { s:'Discipline', t:'Structure is containment. A day with no shape fills itself with whatever is loudest, and that is usually a screen.', g:'P' },
   { s:'The trap', t:'Certainty never comes from thinking. It comes from moving. You are waiting on a feeling only action can produce.', g:'P' },
   { s:'The trap', t:'Simulating the workout feels productive. It is not.', g:'P' },
   { s:'The trap', t:'Thinking without movement is stagnation. The mind ends up exhausted and the life unchanged.', g:'P' },
@@ -807,6 +840,16 @@ function renderCreed(){
   document.getElementById('c-num').textContent = (cIdx+1) + '/' + CREED.length;
   document.getElementById('c-bar').style.width =
     Math.round((cIdx+1)/CREED.length*100) + '%';
+}
+
+/* index of the first card belonging to the theme after this one */
+function creedNextGroup(){
+  var here = CREED[cIdx].s;
+  for(var n=1; n<=CREED.length; n++){
+    var j = (cIdx + n) % CREED.length;
+    if(CREED[j].s !== here) return j;
+  }
+  return cIdx;
 }
 
 /* slide the outgoing card away, bring the next one in */
@@ -858,6 +901,8 @@ function creedGo(dir){
   el.addEventListener('click', function(e){
     if(e.target.closest('#c-prev')){ creedGo(-1); return; }
     if(e.target.closest('#c-next')){ creedGo(1); return; }
+    /* tapping the little label skips to the start of the next theme */
+    if(e.target.closest('#c-src')){ creedGo(creedNextGroup() - cIdx); return; }
     creedGo(1);
   });
 })();
